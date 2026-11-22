@@ -1,587 +1,75 @@
-<!DOCTYPE html>
-<html lang="si">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ROSHAN ADVERTISING SERVICES (PVT) LTD. — Smart Sharing Network [72mm FIXED]</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='14' y='14' width='72' height='72' rx='8' fill='%239E9E9E'/%3E%3Cg transform='rotate(45 50 50)'%3E%3Crect x='16' y='16' width='68' height='68' rx='6' fill='%23111111' stroke='%23E31E24' stroke-width='4'/%3E%3Cpath d='M32 68 V32 H54 C62 32 66 37 66 44 C66 50 61 54 55 55 L67 68 H55 L45 56 H41 V68 Z M41 48 H52 C55 48 57 46 57 44 C57 41 55 39 52 39 H41 Z' fill='%23E31E24'/%3E%3C/g%3E%3C/svg%3E" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
-    body { font-family: 'Montserrat', 'Noto Sans Sinhala', sans-serif; background-color: #f3f4f6; }
-    .brand-header { background: linear-gradient(135deg, #111111 0%, #1f1f1f 65%, #E31E24 100%); }
-    .brand-card { background: linear-gradient(145deg, #161616 0%, #242424 100%); border-left: 4px solid #E31E24; }
-
-    /* === 72MM FIXED THERMAL STYLES === */
-    .thermal-preview {
-      width: 72mm;
-      max-width: 72mm;
-      min-width: 72mm;
+.thermal-preview {
+      width: 100%;
+      max-width: 100%;
       background: #ffffff;
       color: #000000;
       font-family: 'Courier New', Courier, monospace;
-      padding: 3mm 3mm;
-      margin: 0 auto;
+      padding: 2px 0;
+      margin: 0;
       line-height: 1.25;
       box-sizing: border-box;
-      overflow: hidden;
-      word-wrap: break-word;
     }
     .thermal-preview * {
       color: #000000 !important;
+      font-weight: 900;
       box-sizing: border-box;
-      max-width: 100%;
-    }
-    /* Screen preview eka lokuwata pennanna, print eke 72mm pirenna */
-    #thermal-bill-print {
-      width: 72mm !important;
-      min-width: 72mm !important;
-      border: 1px dashed #ccc;
     }
 
-    /* A4 Report print walata witharak */
+    @page {
+      size: 72mm auto;
+      margin: 0mm;
+    }
+
     @media print {
-      body.report-printing * { visibility: hidden; }
-      body.report-printing #report-print-area,
-      body.report-printing #report-print-area * { visibility: visible !important; }
-      body.report-printing #report-print-area {
-        position: absolute !important;
-        left: 0 !important; top: 0 !important;
+      @page {
+        size: 72mm auto;
+        margin: 0mm;
+      }
+
+      html, body, #app, #app > div, #app > div > div, #app > div > div > main, #app > div > div > main > div, #app > div > div > main > div > div, #app > div > div > main > div > div > div:nth-child(2), #app > div > div > main > div > div > div:nth-child(2) > div {
         width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
       }
-    }
-  </style>
-</head>
-<body class="text-gray-900">
 
-<div id="app"></div>
-
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyBKvn1xcoyR8DhCIXUG5HWOOw0_7CD_41c",
-    authDomain: "rads-sharing.firebaseapp.com",
-    projectId: "rads-sharing",
-    storageBucket: "rads-sharing.firebasestorage.app",
-    messagingSenderId: "18912563903",
-    appId: "1:18912563903:web:5b99cd20f9d6dff43a2c0a",
-    measurementId: "G-01X7TRJTRX"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const stateDocRef = doc(db, "rads_agency", "main_state_v4_final");
-
-  function getBrandLogoSVG(size = 54) {
-    return `<svg width="${size}" height="${size}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="shrink-0"><rect x="18" y="18" width="84" height="84" rx="8" fill="#9E9E9E" /><g transform="rotate(45 60 60)"><rect x="20" y="20" width="80" height="80" rx="6" fill="#111111" stroke="#E31E24" stroke-width="4"/><path d="M36 82 V38 H64 C74 38 79 44 79 52 C79 59 73 64 66 65 L80 82 H66 L54 67 H49 V82 Z M49 57 H61 C65 57 67 55 67 52 C67 49 65 47 61 47 H49 Z" fill="#E31E24"/></g></svg>`;
-  }
-  function getBrandWordmark(darkBg = true) {
-    return `<div class="leading-none"><div class="text-lg md:text-2xl font-black tracking-tight"><span class="${darkBg ? 'text-white' : 'text-black'}">ROSHAN</span><span class="text-[#E31E24]">ADVERTISING</span></div><div class="text-[11px] md:text-xs font-bold tracking-[0.22em] text-[#9E9E9E] mt-0.5">SERVICES(PVT)LTD.</div></div>`;
-  }
-
-  // === NEW 72MM IFRAME PRINT FIX - APP EKEN ENA AULA FIX ===
-  window.printThermal72mm = function() {
-    const srcEl = document.getElementById('thermal-bill-print');
-    if (!srcEl) { alert('Bill preview not found!'); return; }
-    const billHTML = srcEl.innerHTML;
-    
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            @page { size: 72mm auto; margin: 0mm; }
-            * { margin:0; padding:0; box-sizing:border-box; }
-            html, body {
-              width: 72mm;
-              min-width: 72mm;
-              max-width: 72mm;
-              margin: 0;
-              padding: 0;
-              background: #fff;
-            }
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              font-size: 12.5px;
-              line-height: 1.25;
-              color: #000;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .receipt {
-              width: 72mm;
-              min-width: 72mm;
-              max-width: 72mm;
-              padding: 2.5mm 3mm;
-              word-wrap: break-word;
-            }
-            .receipt * { color:#000 !important; max-width:100%; }
-            .center { text-align:center; }
-            .bold { font-weight:900; }
-            .line { border-top:2px solid #000; margin:2.5mm 0; }
-            .dashed { border-top:1px dashed #000; margin:2mm 0; }
-            .flex-between { display:flex; justify-content:space-between; }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">
-            ${billHTML}
-          </div>
-          <script>
-            window.onload = function() {
-              setTimeout(function(){ window.print(); }, 250);
-              setTimeout(function(){ window.close(); }, 800);
-            }
-          <\/script>
-        </body>
-      </html>
-    `);
-    doc.close();
-    
-    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 3000);
-  }
-
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  function playSoundEffect(type) {
-    try {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const now = audioCtx.currentTime;
-      const playTone = (freq, start, dur, wave = 'sine', gainVal = 0.25) => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = wave;
-        osc.frequency.setValueAtTime(freq, now + start);
-        gain.gain.setValueAtTime(gainVal, now + start);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start(now + start);
-        osc.stop(now + start + dur);
-      };
-      if (type === 'cashIn') { playTone(987.77, 0, 0.14, 'triangle', 0.3); playTone(1318.51, 0.12, 0.35, 'triangle', 0.35); }
-      else if (type === 'cashOut') { playTone(523.25, 0, 0.15, 'sine', 0.25); playTone(392.00, 0.14, 0.28, 'sine', 0.25); }
-      else if (type === 'printOrder') { playTone(880, 0, 0.12, 'square', 0.2); playTone(880, 0.16, 0.12, 'square', 0.2); playTone(1174.66, 0.32, 0.28, 'square', 0.25); }
-      else if (type === 'specialAlert') { playTone(659.25, 0, 0.15, 'sine', 0.28); playTone(880.00, 0.14, 0.15, 'sine', 0.28); playTone(1318.51, 0.28, 0.35, 'sine', 0.3); }
-    } catch (e) {}
-  }
-
-  function triggerDesktopNotification(title, body, soundType = 'specialAlert') {
-    playSoundEffect(soundType);
-    let blinks = 0;
-    const origTitle = "ROSHAN ADVERTISING SERVICES (PVT) LTD.";
-    const blinkTimer = setInterval(() => {
-      document.title = blinks % 2 === 0 ? `🔴 ALERT: ${title}` : origTitle;
-      blinks++;
-      if (blinks > 12) { clearInterval(blinkTimer); document.title = origTitle; }
-    }, 700);
-    if ("Notification" in window) {
-      if (Notification.permission === "granted") { new Notification(title, { body }); }
-      else if (Notification.permission !== "denied") { Notification.requestPermission().then(p => { if (p === "granted") new Notification(title, { body }); }); }
-    }
-  }
-
-  const RATE_CARD_ITEMS = [
-    { id: 1, cat: 'Flex', name: 'Flex (3 Pass)', u10m: 200, u10p: 140, isSqft: true },
-    { id: 2, cat: 'Flex', name: 'Flex (4 Pass)', u10m: 220, u10p: 200, isSqft: true },
-    { id: 3, cat: 'Flex', name: 'Flex (6 Pass)', u10m: 250, u10p: 220, isSqft: true },
-    { id: 4, cat: 'Sticker', name: 'Sticker (3 Pass)', u10m: 250, u10p: 200, isSqft: true },
-    { id: 5, cat: 'Sticker', name: 'Sticker (4 Pass)', u10m: 300, u10p: 250, isSqft: true },
-    { id: 6, cat: 'Sticker', name: 'Sticker (6 Pass)', u10m: 350, u10p: 300, isSqft: true },
-    { id: 7, cat: 'Sticker', name: 'Sticker with Lamination', u10m: 450, u10p: 400, isSqft: true },
-    { id: 8, cat: 'Flex Board', name: 'Flex Board Single Side', u10m: 700, u10p: 500, isSqft: true },
-    { id: 9, cat: 'Flex Board', name: 'Flex Board Double Side', u10m: 1100, u10p: 800, isSqft: true },
-    { id: 10, cat: 'Light Board', name: 'Light Board Single Side', u10m: 2500, u10p: 2000, isSqft: true },
-    { id: 11, cat: 'Light Board', name: 'Light Board Double Side', u10m: 3000, u10p: 2800, isSqft: true },
-    { id: 12, cat: 'GI Board', name: 'GI Board Single Side', u10m: 1000, u10p: 750, isSqft: true },
-    { id: 13, cat: 'GI Board', name: 'GI Board Double Side', u10m: 1500, u10p: 1250, isSqft: true },
-    { id: 14, cat: 'GI Pole', name: 'GI Pole 3/4 inches', u10m: 0, u10p: 0, isSqft: false },
-    { id: 15, cat: 'GI Pole', name: 'GI Pole 1 inches', u10m: 4500, u10p: 4500, isSqft: false },
-    { id: 16, cat: 'GI Pole', name: 'GI Pole 1 1/4 inches', u10m: 5500, u10p: 5500, isSqft: false },
-    { id: 17, cat: 'GI Pole', name: 'GI Pole 1.5 inches', u10m: 6500, u10p: 6500, isSqft: false },
-    { id: 18, cat: 'Stand', name: 'Stand For Normal Flex Board', u10m: 2000, u10p: 2000, isSqft: false },
-    { id: 19, cat: 'Print', name: 'A4 Print', u10m: 100, u10p: 100, isSqft: false }
-  ];
-  const INITIAL_STAFF = [
-    { id: 'PC01', name: 'Roshan Manchanayaka', role: 'Boss / Owner', pass: 'Rads5555534', isFamily: true, regDate: '', bday: '', tel: '+94 77 651 4284', email: 'roshanads50@gmail.com', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 0, commission: 0, teaEarned: 0, teaTaken: 0, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC02', name: 'Nimesh', role: 'Designer', pass: 'nmalith', isFamily: false, regDate: '2024-03-10', bday: '1999-08-12', tel: '+94 77 012 3090', email: '', photo: '', addr: 'Medirigiriya', sector: 'Design', basicSalary: 45000, commission: 1500, teaEarned: 2100, teaTaken: 1900, advance: 0, leaves: 2, presentToday: true },
-    { id: 'PC03', name: 'Samila Manchanayaka', role: 'Middle Boss', pass: 'radssamila', isFamily: true, regDate: '', bday: '', tel: '+94 74 051 6291', email: '', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 0, commission: 0, teaEarned: 0, teaTaken: 0, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC04', name: 'Apsara', role: 'Cashier', pass: '789', isFamily: false, regDate: '2023-05-01', bday: '2000-11-20', tel: '+94 76 944 3063', email: '', photo: '', addr: 'Medirigiriya', sector: 'Cashier', basicSalary: 42000, commission: 0, teaEarned: 2500, teaTaken: 2100, advance: 0, leaves: 1, presentToday: true },
-    { id: 'PC05', name: 'Hashith', role: 'Designer', pass: 'hdilshan', isFamily: false, regDate: '2022-09-15', bday: '1998-03-22', tel: '+94 71 790 9008', email: '', photo: '', addr: 'Polonnaruwa', sector: 'Design', basicSalary: 48000, commission: 2000, teaEarned: 2800, teaTaken: 2100, advance: 0, leaves: 1, presentToday: true },
-    { id: 'PC06', name: 'Kaushalya', role: 'Account', pass: 'kaushi123', isFamily: false, regDate: '2025-02-03', bday: '1993-02-20', tel: '+94 77 989 4287', email: '', photo: '', addr: 'Newtown Medirigiriya', sector: 'Account', basicSalary: 45000, commission: 0, teaEarned: 2200, teaTaken: 2000, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC07', name: 'Dilini', role: 'Designer', pass: '1234', isFamily: false, regDate: '2024-08-01', bday: '2001-07-14', tel: '', email: '', photo: '', addr: 'Medirigiriya', sector: 'Design', basicSalary: 40000, commission: 1000, teaEarned: 1500, teaTaken: 1200, advance: 0, leaves: 2, presentToday: true },
-    { id: 'PC08', name: 'Savidya', role: 'Management', pass: 'savi123', isFamily: false, regDate: '2021-01-10', bday: '1996-12-05', tel: '', email: '', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 50000, commission: 0, teaEarned: 3000, teaTaken: 2500, advance: 0, leaves: 1, presentToday: true },
-    { id: 'PC09', name: 'Hansani', role: 'Management', pass: 'hansi123', isFamily: false, regDate: '2023-02-14', bday: '1999-01-30', tel: '+94 78 698 1885', email: '', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 46000, commission: 0, teaEarned: 2400, teaTaken: 2000, advance: 0, leaves: 1, presentToday: true },
-    { id: 'PC10', name: 'Nimantha', role: 'Designer', pass: 'nsudagedara', isFamily: false, regDate: '2022-04-01', bday: '1997-09-18', tel: '+94 76 988 2044', email: '', photo: '', addr: 'Polonnaruwa', sector: 'Design', basicSalary: 50000, commission: 2500, teaEarned: 2600, teaTaken: 2100, advance: 0, leaves: 1, presentToday: true },
-    { id: 'PC11', name: 'Shehan', role: 'Management', pass: '1234', isFamily: false, regDate: '2024-06-15', bday: '2000-02-11', tel: '', email: '', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 44000, commission: 0, teaEarned: 1800, teaTaken: 1400, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC12', name: 'Kumara', role: 'Yard Job', pass: 'kumara123', isFamily: false, regDate: '2017-03-01', bday: '1988-10-02', tel: '+94 76 799 3727', email: '', photo: '', addr: 'Medirigiriya', sector: 'Production', basicSalary: 48000, commission: 0, teaEarned: 3500, teaTaken: 3000, advance: 0, leaves: 1, presentToday: true },
-    { id: 'PC13', name: 'Sithum', role: 'Sticker Worker', pass: '1234', isFamily: false, regDate: '2024-09-01', bday: '2003-04-25', tel: '+94 74 346 3422', email: '', photo: '', addr: 'Medirigiriya', sector: 'Production', basicSalary: 40000, commission: 0, teaEarned: 1400, teaTaken: 1000, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC14', name: 'Swarna', role: 'Boss Wife', pass: '1234', isFamily: true, regDate: '', bday: '', tel: '+94 77 729 9290', email: '', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 0, commission: 0, teaEarned: 0, teaTaken: 0, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC15', name: 'Printing Room', role: 'Printing Operator', pass: '1234', isFamily: false, regDate: '2024-01-01', bday: '1995-06-30', tel: '', email: '', photo: '', addr: 'Medirigiriya', sector: 'Printing', basicSalary: 45000, commission: 0, teaEarned: 1200, teaTaken: 900, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC16', name: 'Maleesha', role: 'Designer', pass: 'Geeth123', isFamily: false, regDate: '2024-11-01', bday: '2002-12-12', tel: '+94 74 167 6753', email: '', photo: '', addr: 'Polonnaruwa', sector: 'Design', basicSalary: 40000, commission: 1200, teaEarned: 1300, teaTaken: 1000, advance: 0, leaves: 0, presentToday: true },
-    { id: 'PC17', name: 'Chamodi', role: 'Designer', pass: '1234', isFamily: false, regDate: '2025-01-01', bday: '', tel: '+94 75 557 1558', email: '', photo: '', addr: 'Medirigiriya', sector: 'Design', basicSalary: 40000, commission: 1000, teaEarned: 1000, teaTaken: 800, advance: 0, leaves: 0, presentToday: true }
-  ];
-  const INITIAL_BILLS = [
-    { id: 'RADS-001', date: '2026-11-21', customer: 'Temple', custPhone: '', cashier: 'Apsara', floor: 'Ground', payMethod: 'Cash', items: [{ name: 'Flex (6 Pass) 6x3', qty: 1, price: 3960 }], serviceCharge: 0, serviceNote: '', total: 3960, advance: 0, balance: 3960, status: 'Pending' },
-    { id: 'RADS-002', date: '2026-11-21', customer: 'Perakumpura Temple', custPhone: '', cashier: 'Apsara', floor: 'Ground', payMethod: 'Cash', items: [{ name: 'Flex Board Double Side 4x6', qty: 1, price: 24700 }], serviceCharge: 3000, serviceNote: 'Fixing & Pole', total: 27700, advance: 0, balance: 27700, status: 'Balance Due' },
-    { id: 'RADS-003', date: '2026-11-21', customer: '-', custPhone: '', cashier: 'Apsara', floor: 'Ground', payMethod: 'Cash', items: [{ name: 'Flex (6 Pass) 3x5', qty: 1, price: 3300 }], serviceCharge: 0, serviceNote: '', total: 3300, advance: 3300, balance: 0, status: 'FULL PAID' }
-  ];
-  const INITIAL_JOBS = [
-    { id: '0001', billNo: 'RADS-001', name: 'Kelani - Matara', cat: 'Branding', urgent: true, date: '2026-11-20', finish: '2026-11-26', giver: '071555555 / supun', designer: 'Nimantha', constructor: 'Sithum', amount: 45000, bankPaid: 0, steps: { Mashimant: true, Quotation: true, JobStart: false, DesignerSelect: true, ArtworkOk: true, Print: false, Constructor: false, WorkStart: false, JobComplete: false, Invoice: false, Payment: false } },
-    { id: '0002', billNo: 'RADS-002', name: 'Vavuniya Area Shop - Magic', cat: 'Branding', urgent: false, date: '2026-11-20', finish: '2026-11-27', giver: 'Vavuniya', designer: 'Hashith', constructor: '-', amount: 65000, bankPaid: 20000, steps: { Mashimant: true, Quotation: true, JobStart: true, DesignerSelect: true, ArtworkOk: false, Print: false, Constructor: false, WorkStart: false, JobComplete: false, Invoice: false, Payment: false } }
-  ];
-  const INITIAL_STOCK = [
-    { id: 1, cat: 'Flex', name: '6 Feet Light Board', unit: 'Roll', bought: 5, used: 0 },
-    { id: 2, cat: 'Flex', name: '2 Feet Light Board', unit: 'Roll', bought: 5, used: 0 },
-    { id: 3, cat: 'Flex', name: '4 Feet Light Board', unit: 'Roll', bought: 5, used: 0 },
-    { id: 4, cat: 'Flex', name: '2 Feet Flex', unit: 'Roll', bought: 5, used: 0 },
-    { id: 5, cat: 'Flex', name: '5 Feet Flex', unit: 'Roll', bought: 5, used: 0 },
-    { id: 6, cat: 'Sticker', name: '4 Feet One Way Vision', unit: 'Roll', bought: 3, used: 0 },
-    { id: 7, cat: 'Sticker', name: '4 Feet Mat Sticker SG', unit: 'Roll', bought: 3, used: 0 },
-    { id: 8, cat: 'Sticker', name: '3 Feet PVC Sticker', unit: 'Roll', bought: 4, used: 0 },
-    { id: 9, cat: 'Sticker', name: '2 Feet PVC Sticker', unit: 'Roll', bought: 4, used: 0 },
-    { id: 10, cat: 'Sticker', name: '4 Feet Clear Sticker', unit: 'Roll', bought: 2, used: 0 },
-    { id: 11, cat: 'Sticker', name: 'Diamond Cut Sticker', unit: 'Roll', bought: 2, used: 0 },
-    { id: 12, cat: 'Sticker', name: '4 Feet PVC Sticker', unit: 'Roll', bought: 4, used: 0 },
-    { id: 13, cat: 'Ink - Thintha', name: 'C-Cyan', unit: 'Bottle', bought: 4, used: 0 },
-    { id: 14, cat: 'Ink - Thintha', name: 'M-Magenta', unit: 'Bottle', bought: 4, used: 0 },
-    { id: 15, cat: 'Ink - Thintha', name: 'Y-Yellow', unit: 'Bottle', bought: 4, used: 0 },
-    { id: 16, cat: 'Ink - Thintha', name: 'K-Black', unit: 'Bottle', bought: 4, used: 0 }
-  ];
-  const INITIAL_EXTRA = [
-    { id: 1, date: '2026-11-21', person: 'Sithum', reason: 'Kossa / Hadunkuru', amount: 920, floor: 'Upper', by: 'Apsara PC04' },
-    { id: 2, date: '2026-11-21', person: 'Shehan', reason: 'Lorry', amount: 500, floor: 'Upper', by: 'Apsara PC04' }
-  ];
-  const POSITIVE_QUOTES = [
-    "✨ අද දවස ඔබේ නිර්මාණශීලීත්වයෙන් තවත් ලස්සන කරන්න! (Make today shine with your creativity!)",
-    "🚀 කණ්ඩායමක් ලෙස එක්ව වැඩ කරන විට ඕනෑම අභියෝගයක් ජයගත හැකිය!",
-    "🌟 ඔබ කරන සෑම කුඩා නිර්මාණයක්ම ආයතනයේ විශාල සාර්ථකත්වයක කොටසකි.",
-    "💪 සතුටින් සහ උද්යෝගයෙන් වැඩ අරඹන්න — සාර්ථකත්වය ඔබ පසුපස එනු ඇත!",
-    "🎯 විශිෂ්ටත්වය යනු පුරුද්දකි. අදත් හොඳම දේ ලබා දෙමු!"
-  ];
-
-  let ui = {
-    splashDone: false,
-    user: JSON.parse(sessionStorage.getItem('rads_logged_user') || 'null'),
-    page: 'dashboard',
-    menuOpen: false,
-    sidebarPinned: true,
-    tvMode: false,
-    selectedCashierFloor: 'Ground',
-    searchQuery: '',
-    expandedLoginId: 'PC04',
-    showAddMember: false,
-    cloudSynced: false,
-    lastPrintCount: -1,
-    coins: { c5000: 0, c2000: 0, c1000: 0, c500: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0 },
-    draftPrint: { jobId: '0001', filePath: '\\\\PC10\\D\\Jobs\\', items: [{ fileName: '', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }] },
-    draftBill: { customer: '', custPhone: '', date: '', cashier: 'Apsara', floor: 'Ground', payMethod: 'Cash', items: [{ baseName: 'Flex (6 Pass)', w: 2, h: 3, rate: 250, manualRate: false, name: 'Flex (6 Pass) 2x3', qty: 1, price: 1500 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0 },
-    draftQuote: { customer: '', custPhone: '', items: [{ baseName: 'Flex (6 Pass)', w: 4, h: 6, rate: 220, manualRate: false, name: 'Flex (6 Pass) 4x6', qty: 1, price: 5280 }] },
-    fpRecords: []
-  };
-
-  let cloudData = {
-    staff: INITIAL_STAFF, bills: INITIAL_BILLS, jobs: INITIAL_JOBS, stock: INITIAL_STOCK, extraWorks: INITIAL_EXTRA, rates: RATE_CARD_ITEMS,
-    printQueue: [{ id: 'PQ-01', jobId: '0001', designer: 'Nimantha', filePath: '\\\\PC10\\D\\Jobs\\Kelani_Matara', items: [{ fileName: 'Kelani_Banner.tif', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }], status: 'Pending Print', time: '10:30' }],
-    bookings: [{ id: 1, type: 'Vehicle Sticker Bay', title: 'CAB-4582 (Full Body Wrap)', date: '2026-11-22', time: '09:30 AM', status: 'Confirmed' }, { id: 2, type: 'Interior Washing', title: 'KDH Van Interior Detailing', date: '2026-11-22', time: '02:00 PM', status: 'Confirmed' }],
-    clientsDir: [{ name: 'Perakumpura Temple', phone: '+94 77 123 4567', addr: 'Medirigiriya', jobsCount: 5 }, { name: 'Kelani - Matara', phone: '+94 71 555 5555', addr: 'Matara / Medirigiriya', jobsCount: 3 }],
-    bankTransfers: [], teaPurse: 1100, pendingTeaDeduction: 0, teaTransfers: [], leaveRequests: [], teamMessages: [], shiftTransfers: [], auditLogs: [], remindersDone: {}, sixMonthSummary: { halfYearIncome: 0, halfYearExpenses: 0, lastResetDate: '2026-07-01' }
-  };
-
-  function getColomboNow() { return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' })); }
-  function getColomboDate() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo' }).format(new Date()); }
-  function getCurrentMonthPrefix() { return getColomboDate().slice(0, 7); }
-  ui.draftBill.date = getColomboDate();
-  setTimeout(() => { ui.splashDone = true; render(); }, 2400);
-  onSnapshot(stateDocRef, async (snap) => {
-    if (snap.exists()) {
-      const incoming = snap.data();
-      if (ui.lastPrintCount !== -1 && incoming.printQueue) {
-        const pendingNow = incoming.printQueue.filter(p => p.status === 'Pending Print').length;
-        const printedNow = incoming.printQueue.filter(p => p.status === 'Printed').length;
-        if (pendingNow > ui.lastPendingPrints) { triggerDesktopNotification("🖨 NEW PRINT ORDER!", "Designer කෙනෙක් අලුත් Print Job එකක් එවා ඇත!", "printOrder"); }
-        else if (printedNow > ui.lastDonePrints) { triggerDesktopNotification("✅ PRINTED COMPLETE!", "Printing Room එකෙන් Print Job එකක් අවසන් කර ඇත!", "specialAlert"); }
+      body > *:not(#app) {
+        display: none !important;
       }
-      cloudData = { ...cloudData, ...incoming };
-      if (!cloudData.rates || cloudData.rates.length < 10) cloudData.rates = RATE_CARD_ITEMS;
-      ui.lastPrintCount = (cloudData.printQueue || []).length;
-      ui.lastPendingPrints = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length;
-      ui.lastDonePrints = (cloudData.printQueue || []).filter(p => p.status === 'Printed').length;
-      if (ui.user) { const updatedMe = cloudData.staff.find(s => s.id === ui.user.id); if (updatedMe) ui.user = updatedMe; }
-      ui.cloudSynced = true; render();
-    } else { await setDoc(stateDocRef, cloudData); ui.cloudSynced = true; render(); }
-  });
-  async function saveCloud(auditAction = null) {
-    if (auditAction && ui.user) {
-      cloudData.auditLogs = cloudData.auditLogs || [];
-      cloudData.auditLogs.unshift({ time: `${getColomboDate()} ${getColomboNow().toTimeString().slice(0, 5)}`, user: `${ui.user.name} (${ui.user.id})`, action: auditAction });
-      if (cloudData.auditLogs.length > 50) cloudData.auditLogs.pop();
-    }
-    try { await setDoc(stateDocRef, cloudData); } catch (e) { alert("Cloud Save Error: Internet check karanna."); }
-  }
-  function isBossOrFamily(u) { return u && u.isFamily; }
-  function isManagerOrCashier(u) { return u && (u.isFamily || u.role === 'Cashier' || u.role === 'Account' || u.role === 'Management'); }
-  function isDesignerOnly(u) { return u && !u.isFamily && u.role === 'Designer'; }
-  function formatWhatsAppNumber(raw) { if (!raw) return ''; let digits = raw.replace(/[^0-9]/g, ''); if (digits.startsWith('0')) digits = '94' + digits.slice(1); else if (digits.length === 9) digits = '94' + digits; return digits; }
-  function getSmartGreeting() { const h = getColomboNow().getHours(); if (h >= 5 && h < 12) return "☀ Good Morning!"; if (h >= 12 && h < 16) return "🌤 Good Afternoon!"; if (h >= 16 && h < 18) return "🌅 Good Evening!"; return "🌙 Good Night!"; }
-  function getDailyQuote() { const dayNum = Math.floor(Date.now() / (1000 * 60 * 60 * 24)); return POSITIVE_QUOTES[dayNum % POSITIVE_QUOTES.length]; }
-  function getTenureBadge(person) {
-    if (person.isFamily) return `<span class="px-2 py-0.5 text-[10px] font-black rounded bg-amber-300 text-black">👑 Family</span>`;
-    if (!person.regDate) return `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-gray-700 text-white">Staff</span>`;
-    const years = Math.floor((new Date() - new Date(person.regDate)) / (365.25 * 24 * 60 * 60 * 1000));
-    if (years >= 10) return `<span class="px-2 py-0.5 text-[10px] font-black rounded bg-yellow-400 text-black">⭐ 10+ VIP</span>`;
-    if (years >= 5) return `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-red-600 text-white">${years}+ Yrs</span>`;
-    if (years >= 2) return `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-600 text-white">${years}+ Yrs</span>`;
-    return `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-gray-600 text-white">1+ Yr</span>`;
-  }
-  function calcCashierBalances() {
-    const today = getColomboDate();
-    const res = { Ground: 0, Upper: 0, Counter3: 0, Total: 0, todayCashIncome: 0, todayBankIncome: 0, todayExpenses: 0, todayTeaDeducted: 0 };
-    cloudData.bills.filter(b => b.date === today && b.status !== 'Pending').forEach(b => {
-      const cashAmt = Number(b.advance || 0); const bankAmt = Number(b.bankPaid || 0);
-      if (b.payMethod === 'Bank Transfer' && bankAmt === 0) { res.todayBankIncome += cashAmt; }
-      else { res.todayCashIncome += cashAmt; res.todayBankIncome += bankAmt; if (res[b.floor] !== undefined) res[b.floor] += cashAmt; else res.Ground += cashAmt; }
-    });
-    (cloudData.bankTransfers || []).filter(bt => bt.date === today).forEach(bt => { res.todayBankIncome += Number(bt.amount || 0); });
-    cloudData.extraWorks.filter(e => e.date === today).forEach(e => { const amt = Number(e.amount || 0); res.todayExpenses += amt; if (res[e.floor] !== undefined) res[e.floor] -= amt; else res.Ground -= amt; });
-    (cloudData.teaTransfers || []).filter(t => t.date === today).forEach(t => { const amt = Number(t.amount || 0); res.todayTeaDeducted += amt; if (res[t.floor] !== undefined) res[t.floor] -= amt; else res.Ground -= amt; });
-    res.Total = res.Ground + res.Upper + res.Counter3; return res;
-  }
-  function calcMonthlyStats() {
-    const monthPrefix = getCurrentMonthPrefix(); let mIncome = 0, mExpenses = 0, mTea = 0, totalCustomerDues = 0;
-    cloudData.bills.forEach(b => { if (b.date.startsWith(monthPrefix) && b.status !== 'Pending') { mIncome += Number(b.advance || 0) + Number(b.bankPaid || 0); } if (b.balance > 0) totalCustomerDues += Number(b.balance || 0); });
-    (cloudData.bankTransfers || []).filter(bt => bt.date.startsWith(monthPrefix)).forEach(bt => mIncome += Number(bt.amount || 0));
-    cloudData.extraWorks.filter(e => e.date.startsWith(monthPrefix)).forEach(e => mExpenses += Number(e.amount || 0));
-    (cloudData.teaTransfers || []).filter(t => t.date.startsWith(monthPrefix)).forEach(t => mTea += Number(t.amount || 0));
-    return { mIncome, mExpenses: mExpenses + mTea, mNet: mIncome - (mExpenses + mTea), totalCustomerDues };
-  }
-  function getActiveAlerts() {
-    const now = getColomboNow(); const todayStr = getColomboDate(); const mdStr = todayStr.slice(5); const day = now.getDay(); const hour = now.getHours(); const min = now.getMinutes(); const alerts = [];
-    const bdayStaff = cloudData.staff.filter(s => !s.isFamily && s.bday && s.bday.slice(5) === mdStr);
-    bdayStaff.forEach(bs => { alerts.push({ key: `bday_${bs.id}_${todayStr}`, type: 'bday', noDismiss: true, title: `🎂 HAPPY BIRTHDAY ${bs.name.toUpperCase()}! 🎉`, msg: `අද ${bs.name} (${bs.id}) ගේ උපන්දිනයයි!`, waText: `🎂🎉 *HAPPY BIRTHDAY ${bs.name.toUpperCase()}!*` }); });
-    if ((day === 2 || day === 4) && hour < 9 && !cloudData.remindersDone[`garbage_${todayStr}`]) { alerts.push({ key: `garbage_${todayStr}`, type: 'urgent', title: '🚛 නගර සභා කුණු ලොරිය (පෙ.ව. 9:00 ට කලින්!)', msg: 'අද අඟහරුවාදා/බ්රහස්පතින්දා! කුණු ටික එළියෙන් තියන්න.', waText: '🚛 *RADS REMINDER:* කුණු ලොරිය එන දවසයි!' }); }
-    if (((hour === 11 && min >= 55) || (hour === 12 && min <= 30)) && !cloudData.remindersDone[`lunch_${todayStr}`]) { alerts.push({ key: `lunch_${todayStr}`, type: 'weekly', title: '🍱 දවල් ආහාර වේල (12:30 PM Lunch Time)', msg: '12:30 ට දවල් කෑම වේල ආරම්භ වේ.', waText: '🍱 *RADS REMINDER:* 12:30 Lunch Time!' }); }
-    if (day === 1 && !cloudData.remindersDone[`oil_${todayStr}`]) { alerts.push({ key: `oil_${todayStr}`, type: 'weekly', title: '🛢 සතිපතා ජලීය තෙල් පරීක්ෂාව', msg: 'තෙල් මට්ටම පරීක්ෂා කරන්න.', waText: '🛢 *RADS WEEKLY ALERT:* Oil Level පරීක්ෂා කරන්න.' }); }
-    if (day === 6 && !cloudData.remindersDone[`clean_${todayStr}`]) { alerts.push({ key: `clean_${todayStr}`, type: 'weekly', title: '🧼 සතිපතා Washroom & Glass Cleaning', msg: 'Washroom සහ Glass Cleaning කරන්න.', waText: '🧼 *RADS WEEKLY ALERT:* Washroom Cleaning කරන්න.' }); }
-    const lowStock = cloudData.stock.filter(s => (s.bought - s.used) <= 1);
-    if (lowStock.length > 0) {
-      const names = lowStock.map(s => `${s.name} (ඉතුරු: ${s.bought - s.used})`).join(', ');
-      alerts.push({ key: 'stock_low_persistent', type: 'stock', noDismiss: true, title: `⚠ LOW STOCK ALERT (${lowStock.length} Items)`, msg: names, waText: `⚠ *RADS LOW STOCK ALERT:* ${names}` });
-    }
-    return alerts;
-  }
 
-  window.ui = ui; window.cloudData = cloudData; window.render = render; window.saveCloud = saveCloud; window.playSoundEffect = playSoundEffect;
-  window.handleBillEnter = (e, nextId) => { if (e.key === 'Enter') { e.preventDefault(); const nextEl = document.getElementById(nextId); if (nextEl) { nextEl.focus(); if (nextEl.select) nextEl.select(); } } };
-  window.openWhatsApp = (phone, text) => { const cleanPhone = formatWhatsAppNumber(phone); const url = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`; window.open(url, '_blank'); };
-  window.loginUser = (id) => {
-    const pwd = document.getElementById('pwd_' + id).value; const person = cloudData.staff.find(s => s.id === id);
-    if (person && person.pass === pwd) { if ("Notification" in window && Notification.permission === "default") { Notification.requestPermission(); } ui.user = person; ui.draftBill.cashier = person.name; ui.draftBill.date = getColomboDate(); sessionStorage.setItem('rads_logged_user', JSON.stringify(person)); ui.page = 'dashboard'; ui.menuOpen = false; playSoundEffect('specialAlert'); render(); } else { alert('❌ Password වැරදියි!'); }
-  };
-  window.addNewMember = async () => {
-    const adminPwd = prompt("Boss / Admin Password:"); if (adminPwd !== 'Rads5555534' && adminPwd !== 'radssamila' && adminPwd !== '1234') { return alert("❌ Admin Password වැරදියි!"); }
-    const name = document.getElementById('nm_name').value.trim(); const role = document.getElementById('nm_role').value; const tel = document.getElementById('nm_tel').value.trim(); const pass = document.getElementById('nm_pass').value.trim() || '1234'; if (!name) return alert("නම ඇතුළත් කරන්න.");
-    const nextNum = String(cloudData.staff.length + 1).padStart(2, '0'); const newId = 'PC' + nextNum;
-    cloudData.staff.push({ id: newId, name, role, pass, isFamily: false, regDate: getColomboDate(), bday: '', tel, email: '', photo: '', addr: 'Medirigiriya', sector: role, basicSalary: 40000, commission: 0, teaEarned: 0, teaTaken: 0, advance: 0, leaves: 0, presentToday: true });
-    ui.showAddMember = false; await saveCloud(`Added New Member ${name} (${newId})`); alert(`✅ ${name} (${newId}) එකතු විය!`); render();
-  };
-  window.logout = () => { ui.user = null; ui.tvMode = false; sessionStorage.removeItem('rads_logged_user'); render(); };
-  window.setPage = (p) => { ui.page = p; ui.menuOpen = false; render(); };
-  window.handlePhotoUpload = (event) => {
-    const file = event.target.files[0]; if (!file) return; const reader = new FileReader();
-    reader.onload = (e) => { const img = new Image(); img.onload = async () => { const canvas = document.createElement('canvas'); const maxDim = 150; let w = img.width, h = img.height; if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } } else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } } canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h); const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7); const me = cloudData.staff.find(x => x.id === ui.user.id); if (me) { me.photo = compressedDataUrl; ui.user.photo = compressedDataUrl; await saveCloud(`${me.name} updated photo`); render(); } }; img.src = e.target.result; }; reader.readAsDataURL(file);
-  };
-  window.saveProfileDetails = async () => {
-    const me = cloudData.staff.find(x => x.id === ui.user.id); if (!me) return;
-    me.tel = document.getElementById('prof_tel').value.trim(); me.email = document.getElementById('prof_email').value.trim(); me.addr = document.getElementById('prof_addr').value.trim();
-    if (!me.isFamily) { const bdayEl = document.getElementById('prof_bday'); const regEl = document.getElementById('prof_reg'); if (bdayEl) me.bday = bdayEl.value; if (regEl) me.regDate = regEl.value; }
-    const newPass = document.getElementById('prof_pass').value.trim(); if (newPass) me.pass = newPass;
-    ui.user = { ...me }; sessionStorage.setItem('rads_logged_user', JSON.stringify(ui.user)); await saveCloud(`${me.name} updated profile`); alert('✅ Profile Save විය!'); render();
-  };
-  window.recalcBillLive = () => {
-    const d = ui.draftBill; const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0); const total = itemsTotal + Number(d.serviceCharge || 0); const adv = d.pending ? 0 : Number(d.advance || 0); const bal = Math.max(0, total - adv);
-    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
-    setTxt('bill_total_disp', 'Rs. ' + total.toLocaleString()); setTxt('bill_bal_disp', 'Rs. ' + bal.toLocaleString()); setTxt('prev_total', 'Rs. ' + total.toLocaleString()); setTxt('prev_adv', 'Rs. ' + adv.toLocaleString()); setTxt('prev_bal', 'Rs. ' + bal.toLocaleString()); setTxt('pdf_total_adv', `Total: Rs. ${total.toLocaleString()} | Paid (${d.payMethod}): Rs. ${adv.toLocaleString()}`); setTxt('pdf_bal', `Balance Due: Rs. ${bal.toLocaleString()}`);
-  };
-  window.syncBillPreviewItems = () => {
-    const prevItems = document.getElementById('prev_items_list');
-    if (prevItems) { prevItems.innerHTML = ui.draftBill.items.map(it => `<div class="py-1 border-b border-dotted border-black"><div class="text-sm font-black leading-snug break-words">${it.name || 'Item'}</div><div class="flex justify-between text-xs mt-0.5"><span>${it.qty} x Rs.${Number(it.price).toLocaleString()}</span><span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span></div></div>`).join(''); }
-    recalcBillLive();
-  };
-  window.onBillItemSelect = (idx, val, target = 'draftBill') => {
-    const item = ui[target].items[idx]; item.baseName = val; item.manualRate = false;
-    const rateObj = cloudData.rates.find(r => r.name.toLowerCase() === val.toLowerCase());
-    if (rateObj) {
-      if (rateObj.isSqft) { const w = Number(item.w || 1), h = Number(item.h || 1); const sqft = w * h; const unitRate = sqft < 10 ? rateObj.u10m : rateObj.u10p; item.rate = unitRate; item.price = Math.round(sqft * unitRate); item.name = `${rateObj.name} ${w}x${h}`; }
-      else { item.w = ''; item.h = ''; item.rate = rateObj.u10m || 0; item.price = rateObj.u10m || item.price || 0; item.name = rateObj.name; }
-    } else { item.name = val; }
-    render(); setTimeout(() => { const nextEl = document.getElementById(`${target}_w_${idx}`); if (nextEl) { nextEl.focus(); nextEl.select(); } }, 30);
-  };
-  window.onBillSizeOrRateChange = (idx, target = 'draftBill', source = 'size') => {
-    const item = ui[target].items[idx]; const rateObj = cloudData.rates.find(r => r.name.toLowerCase() === (item.baseName || '').toLowerCase()); const w = Number(item.w || 0), h = Number(item.h || 0);
-    if (source === 'rate') { item.manualRate = true; }
-    if (w > 0 && h > 0) {
-      const sqft = w * h; if (!item.manualRate && rateObj && rateObj.isSqft) { item.rate = sqft < 10 ? rateObj.u10m : rateObj.u10p; }
-      const activeRate = Number(item.rate || 0); if (activeRate > 0) { item.price = Math.round(sqft * activeRate); }
-      item.name = item.baseName ? `${item.baseName} ${w}x${h}` : `${w}x${h}`;
-    } else if (Number(item.rate) > 0 && source === 'rate') { item.price = Number(item.rate); }
-    const rateInput = document.getElementById(`${target}_rate_${idx}`); if (rateInput && source !== 'rate') rateInput.value = item.rate || '';
-    const priceInput = document.getElementById(`${target}_price_${idx}`); if (priceInput) priceInput.value = item.price;
-    if (target === 'draftBill') { syncBillPreviewItems(); } else { render(); }
-  };
-  window.checkCustomerDebt = (custName) => {
-    ui.draftBill.customer = custName; const el = document.getElementById('prev_cust'); if (el) el.innerText = custName || '-'; const pdfCust = document.getElementById('pdf_cust'); if (pdfCust) pdfCust.innerText = custName || 'Valued Customer';
-    const known = (cloudData.clientsDir || []).find(c => c.name.toLowerCase() === custName.trim().toLowerCase()); if (known && !ui.draftBill.custPhone) ui.draftBill.custPhone = known.phone;
-    const warnEl = document.getElementById('cust_debt_warn');
-    if (warnEl) { if (custName && custName.trim().length > 2 && custName !== '-') { const oldDues = cloudData.bills.filter(b => b.customer.toLowerCase() === custName.trim().toLowerCase() && b.balance > 0); const sum = oldDues.reduce((s, b) => s + Number(b.balance), 0); if (sum > 0) { warnEl.innerHTML = `⚠ අවවාදයයි: <b>${custName}</b> හට පරණ ණය බිල් (${oldDues.length}) කින් <b>Rs. ${sum.toLocaleString()}</b> ක් තවම ගෙවීමට ඇත!`; warnEl.classList.remove('hidden'); return; } } warnEl.classList.add('hidden'); }
-  };
+      .brand-header, aside, #ebill_pdf_box, #report-print-area,
+      .lg\:col-span-7, #app > div > div > main > div > div > div:nth-child(2) > p {
+        display: none !important;
+      }
 
-  // === FIXED SAVE & PRINT ===
-  window.saveNewBill = async (printAfter = false) => {
-    const d = ui.draftBill; const itemsTotal = d.items.reduce((acc, it) => acc + (Number(it.qty) * Number(it.price)), 0); const total = itemsTotal + Number(d.serviceCharge || 0);
-    if (total <= 0) return alert('කරුණාකර බිලට අයිතම සහ මිල ඇතුළත් කරන්න.');
-    const adv = d.pending ? 0 : Number(d.advance || 0); const bal = Math.max(0, total - adv); const status = d.pending ? 'Pending' : (bal <= 0 ? 'FULL PAID' : 'Balance Due'); const nextNum = String(cloudData.bills.length + 1).padStart(3, '0'); const billId = 'RADS-' + nextNum; const isBankDirect = d.payMethod === 'Bank Transfer';
-    const newBill = { id: billId, date: getColomboDate(), customer: d.customer || '-', custPhone: d.custPhone || '', cashier: ui.user.name, floor: d.floor, payMethod: d.payMethod, items: JSON.parse(JSON.stringify(d.items)), serviceCharge: Number(d.serviceCharge || 0), serviceNote: d.serviceNote, total, advance: isBankDirect ? 0 : adv, bankPaid: isBankDirect ? adv : 0, balance: bal, status };
-    cloudData.bills.unshift(newBill);
-    if (d.customer && d.customer !== '-' && d.customer.length > 2) { cloudData.clientsDir = cloudData.clientsDir || []; const existing = cloudData.clientsDir.find(c => c.name.toLowerCase() === d.customer.toLowerCase()); if (existing) { existing.jobsCount = (existing.jobsCount || 1) + 1; if (d.custPhone) existing.phone = d.custPhone; } else { cloudData.clientsDir.push({ name: d.customer, phone: d.custPhone || '', addr: 'Medirigiriya', jobsCount: 1 }); } }
-    if (bal === 0) { cloudData.jobs.forEach(j => { if (j.billNo && j.billNo.toUpperCase() === billId) j.steps.Payment = true; }); }
-    if (adv > 0 && d.payMethod === 'Cash') playSoundEffect('cashIn'); await saveCloud(`Created Bill ${billId} (${d.payMethod}, Rs. ${total}, ${status})`);
-    if (printAfter) {
-      setTimeout(() => {
-        printThermal72mm();
-        ui.draftBill = { customer: '', custPhone: '', date: getColomboDate(), cashier: ui.user.name, floor: ui.selectedCashierFloor, payMethod: 'Cash', items: [{ baseName: '', w: '', h: '', rate: '', manualRate: false, name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0 };
-        setTimeout(()=>render(), 1500);
-      }, 300);
-    } else {
-      ui.draftBill = { customer: '', custPhone: '', date: getColomboDate(), cashier: ui.user.name, floor: ui.selectedCashierFloor, payMethod: 'Cash', items: [{ baseName: '', w: '', h: '', rate: '', manualRate: false, name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0 }; render();
+      #thermal-bill-print,
+      #thermal-bill-print * {
+        visibility: visible !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+
+      #thermal-bill-print {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        font-size: 15px !important;
+        line-height: 1.22 !important;
+      }
+
+      #thermal-bill-print .text-base { font-size: 19px !important; }
+      #thermal-bill-print .text-sm { font-size: 16px !important; }
+      #thermal-bill-print .text-xs { font-size: 14.5px !important; }
+      #thermal-bill-print .text-\[11px\] { font-size: 13px !important; }
     }
-  };
-
-  window.downloadZeroStoragePDF = (elementId, filename) => {
-    const el = document.getElementById(elementId); if (!el) return;
-    html2pdf().set({ margin: 5, filename: filename, image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a5', orientation: 'portrait' } }).from(el).save();
-  };
-  window.collectPayment = async (billId) => {
-    const bill = cloudData.bills.find(b => b.id === billId); if (!bill) return; const amtStr = prompt(`${bill.id} (Balance: Rs. ${bill.balance}) සඳහා ගෙවූ මුදල:`, bill.balance); if (!amtStr) return; const paid = Number(amtStr); if (isNaN(paid) || paid <= 0) return;
-    const isBank = confirm(`Bank Transfer ද? [OK]=Bank [Cancel]=Cash`); if (isBank) { bill.bankPaid = (bill.bankPaid || 0) + paid; bill.payMethod = 'Bank Transfer'; } else { bill.advance = (bill.advance || 0) + paid; playSoundEffect('cashIn'); }
-    const totalPaid = (bill.advance || 0) + (bill.bankPaid || 0); bill.balance = Math.max(0, bill.total - totalPaid); bill.status = bill.balance === 0 ? 'FULL PAID' : 'Balance Due';
-    cloudData.jobs.forEach(j => { if (j.billNo && j.billNo.toUpperCase() === bill.id.toUpperCase() && bill.balance === 0) { j.steps.Payment = true; } });
-    await saveCloud(`Collected Rs. ${paid} for ${bill.id}`); render();
-  };
-  window.deleteBill = async (billId) => { if (!confirm(`Delete ${billId}?`)) return; cloudData.bills = cloudData.bills.filter(x => x.id !== billId); await saveCloud(`Deleted Bill ${billId}`); render(); };
-  window.submitPrintOrder = async () => {
-    const dp = ui.draftPrint; const validItems = dp.items.filter(i => i.fileName.trim() !== ''); if (!validItems.length) return alert('File Name එකක් දාන්න.');
-    const nextPq = 'PQ-' + String((cloudData.printQueue || []).length + 1).padStart(2, '0'); cloudData.printQueue = cloudData.printQueue || [];
-    cloudData.printQueue.unshift({ id: nextPq, jobId: dp.jobId || '-', designer: ui.user.name, filePath: dp.filePath, items: JSON.parse(JSON.stringify(validItems)), status: 'Pending Print', time: `${getColomboDate()} ${getColomboNow().toTimeString().slice(0, 5)}` });
-    playSoundEffect('printOrder'); await saveCloud(`Print Order ${nextPq}`); ui.draftPrint = { jobId: '', filePath: '\\\\' + ui.user.id + '\\D\\Jobs\\', items: [{ fileName: '', material: 'Flex', size: '', pass: '6 Pass', copies: 1 }] }; alert(`✅ Print Order ${nextPq} sent!`); render();
-  };
-  window.markPrintOrderDone = async (pqId) => { const pq = (cloudData.printQueue || []).find(x => x.id === pqId); if (!pq) return; pq.status = 'Printed'; pq.printedBy = ui.user.name; pq.printedAt = getColomboNow().toTimeString().slice(0, 5); if (pq.jobId && pq.jobId !== '-') { const job = cloudData.jobs.find(j => j.id === pq.jobId); if (job) job.steps.Print = true; } playSoundEffect('specialAlert'); await saveCloud(`Marked ${pq.id} PRINTED`); render(); };
-  window.addNewJob = async () => { const name = document.getElementById('nj_name').value.trim(); const billNo = document.getElementById('nj_bill').value.trim().toUpperCase(); const cat = document.getElementById('nj_cat').value; const finish = document.getElementById('nj_finish').value; const designer = document.getElementById('nj_designer').value; const urgent = document.getElementById('nj_urgent').checked; if (!name) return alert('Job Name දාන්න.'); const nextId = String(cloudData.jobs.length + 1).padStart(4, '0'); const linkedBill = billNo ? cloudData.bills.find(b => b.id.toUpperCase() === billNo) : null; const isPaid = linkedBill ? (linkedBill.balance === 0 && linkedBill.status === 'FULL PAID') : false; cloudData.jobs.unshift({ id: nextId, billNo: billNo || '', name, cat, urgent, date: getColomboDate(), finish: finish || getColomboDate(), giver: ui.user.name, designer, constructor: '-', amount: linkedBill ? linkedBill.total : 0, bankPaid: 0, steps: { Mashimant: true, Quotation: true, JobStart: true, DesignerSelect: true, ArtworkOk: false, Print: false, Constructor: false, WorkStart: false, JobComplete: false, Invoice: !!linkedBill, Payment: isPaid } }); await saveCloud(`Added Job #${nextId}`); render(); };
-  window.addJobBankTransfer = async (jobIdx) => { const j = cloudData.jobs[jobIdx]; const amtStr = prompt(`Bank Transfer Rs.:`); if (!amtStr) return; const amt = Number(amtStr); if (!amt || amt <= 0) return; const ref = prompt("Ref:", "Online") || "Online"; j.bankPaid = (j.bankPaid || 0) + amt; if (j.amount > 0 && j.bankPaid >= j.amount) j.steps.Payment = true; else if (confirm("Full Payment?")) j.steps.Payment = true; cloudData.bankTransfers = cloudData.bankTransfers || []; cloudData.bankTransfers.unshift({ date: getColomboDate(), ref: `Job #${j.id} (${ref})`, customer: j.name, amount: amt, by: ui.user.name }); playSoundEffect('cashIn'); await saveCloud(`Bank Rs. ${amt} for Job #${j.id}`); render(); };
-  window.markAttendanceAndTea = async (staffId, isPresent) => { const p = cloudData.staff.find(s => s.id === staffId); if (!p) return; const today = getColomboDate(); if (p.lastMarkedDate === today) return alert(`⚠ ${p.name} අද mark කරලා!`); p.lastMarkedDate = today; p.presentToday = isPresent; if (isPresent) { p.teaEarned += 100; cloudData.pendingTeaDeduction = (cloudData.pendingTeaDeduction || 0) + 100; await saveCloud(`Marked ${p.name} Present`); } else { p.leaves = (p.leaves || 0) + 1; await saveCloud(`Marked ${p.name} Leave`); } render(); };
-  window.transferCashierToTeaPurse = async () => { const amt = Number(document.getElementById('tea_trans_amt').value); const floor = document.getElementById('tea_trans_floor').value; if (!amt || amt <= 0) return alert('මුදල දාන්න.'); const bals = calcCashierBalances(); if (bals[floor] < amt) { return alert(`⚠ ${floor} Balance: Rs. ${bals[floor]}`); } cloudData.teaPurse += amt; cloudData.pendingTeaDeduction = Math.max(0, (cloudData.pendingTeaDeduction || 0) - amt); cloudData.teaTransfers = cloudData.teaTransfers || []; cloudData.teaTransfers.unshift({ date: getColomboDate(), floor, amount: amt, by: ui.user.name }); playSoundEffect('cashOut'); await saveCloud(`Deducted Rs. ${amt} to Tea`); render(); };
-  window.withdrawMyTeaMoney = async (staffId) => { const p = cloudData.staff.find(s => s.id === staffId); if (!p) return; const rem = p.teaEarned - p.teaTaken; if (rem <= 0) return alert('❌ Balance 0!'); const amtStr = prompt(`${p.name} — Rem: Rs. ${rem}\nAmount:`, rem); if (!amtStr) return; const amt = Number(amtStr); if (isNaN(amt) || amt <= 0 || amt > rem) return alert(`Max Rs. ${rem}`); if (cloudData.teaPurse < amt) return alert(`Purse Rs. ${cloudData.teaPurse}`); p.teaTaken += amt; cloudData.teaPurse -= amt; await saveCloud(`${p.name} took Rs. ${amt}`); render(); };
-  window.submitLeaveRequest = async () => { const date = document.getElementById('lv_date').value; const leaveType = document.getElementById('lv_type').value; const reason = document.getElementById('lv_reason').value.trim(); if (!date || !reason) return alert('දිනය සහ හේතුව දාන්න.'); const todayObj = new Date(getColomboDate() + 'T00:00:00'); const reqObj = new Date(date + 'T00:00:00'); const diffDays = Math.round((reqObj - todayObj) / (1000 * 60 * 60 * 24)); if (leaveType === 'Personal Leave' && diffDays < 3) { return alert(`⚠ Personal Leave දින 3කට පෙර දාන්න!`); } cloudData.leaveRequests = cloudData.leaveRequests || []; cloudData.leaveRequests.unshift({ id: Date.now(), staffId: ui.user.id, name: ui.user.name, date, leaveType, reason, status: 'Pending Boss Approval', approvedBy: '' }); playSoundEffect('specialAlert'); await saveCloud(`${ui.user.name} requested ${leaveType}`); alert('✅ Leave request sent!'); render(); };
-  window.approveOrRejectLeave = async (reqId, newStatus) => { if (!isBossOrFamily(ui.user)) return alert('Boss only!'); const req = (cloudData.leaveRequests || []).find(r => r.id === reqId); if (!req || req.status !== 'Pending Boss Approval') return; req.status = newStatus; req.approvedBy = ui.user.name; if (newStatus === 'Approved') { const staffMember = cloudData.staff.find(s => s.id === req.staffId); if (staffMember && !staffMember.isFamily) { staffMember.leaves = (staffMember.leaves || 0) + 1; } playSoundEffect('cashIn'); } else { playSoundEffect('cashOut'); } await saveCloud(`${ui.user.name} ${newStatus} Leave ${req.name}`); render(); };
-  window.sendTeamMessage = async () => { const input = document.getElementById('team_msg_input'); const text = input.value.trim(); if (!text) return; cloudData.teamMessages = cloudData.teamMessages || []; cloudData.teamMessages.unshift({ id: Date.now(), senderId: ui.user.id, senderName: ui.user.name, senderRole: ui.user.role, text, time: `${getColomboDate()} ${getColomboNow().toTimeString().slice(0, 5)}` }); if (cloudData.teamMessages.length > 60) cloudData.teamMessages.pop(); input.value = ''; playSoundEffect('specialAlert'); await saveCloud(`${ui.user.name} sent msg`); render(); };
-  window.updateStockItem = async (idx, delta) => { const st = cloudData.stock[idx]; if (delta > 0) { const qtyStr = prompt(`${st.name} — Add Qty:`, '1'); const qty = Number(qtyStr); if (!qty || qty <= 0) return; st.bought += qty; await saveCloud(`Added +${qty} ${st.name}`); } else { const rem = st.bought - st.used; if (rem <= 0) return alert(`❌ ${st.name} 0!`); st.used += 1; const newRem = st.bought - st.used; await saveCloud(`Used 1 ${st.name}`); if (newRem <= 1) { playSoundEffect('specialAlert'); alert(`⚠ LOW STOCK: ${st.name} ${newRem} left!`); } } render(); };
-  window.addExtraWork = async (quickTag = '') => { const person = document.getElementById('ew_person').value; const reasonInput = document.getElementById('ew_reason'); const reason = quickTag ? `${quickTag} - ${reasonInput.value || 'Office'}` : reasonInput.value; const amount = Number(document.getElementById('ew_amount').value); const floor = document.getElementById('ew_floor').value; if (!reason || !amount) return alert('Reason & Amount දාන්න.'); cloudData.extraWorks.unshift({ id: Date.now(), date: getColomboDate(), person, reason, amount, floor, by: `${ui.user.name} ${ui.user.id}` }); playSoundEffect('cashOut'); await saveCloud(`Expense Rs. ${amount}`); render(); };
-  window.recordCashierShiftHandover = async () => { const toPerson = document.getElementById('sh_to').value; const floor = ui.selectedCashierFloor; const bals = calcCashierBalances(); const amt = bals[floor]; if (!confirm(`Handover ${floor}: Rs. ${amt} → ${toPerson}?`)) return; cloudData.shiftTransfers = cloudData.shiftTransfers || []; cloudData.shiftTransfers.unshift({ time: `${getColomboDate()} ${getColomboNow().toTimeString().slice(0, 5)}`, floor, from: ui.user.name, to: toPerson, amount: amt }); await saveCloud(`Handover ${floor}`); render(); };
-  window.parseFingerprintFile = (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const lines = e.target.result.split(/\r?\n/).filter(Boolean); const parsed = []; lines.slice(1).forEach(line => { const cols = line.split(','); if (cols.length >= 4) { const name = cols[0].trim(); const date = cols[1].trim(); const inTime = cols[2].trim(); const outTime = cols[3].trim(); let otHours = 0; if (outTime && outTime.includes(':')) { const [oh, om] = outTime.split(':').map(Number); if (oh >= 18) otHours = Number(((oh - 18) + (om / 60)).toFixed(2)); } parsed.push({ name, date, inTime, outTime, otHours }); } }); ui.fpRecords = parsed; alert(`✅ Parsed ${parsed.length}`); render(); }; reader.readAsText(file); };
-  window.executeSixMonthBackupAndReset = async () => { const mStats = calcMonthlyStats(); const backupData = JSON.stringify(cloudData, null, 2); const blob = new Blob([backupData], { type: 'application/json' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `RADS_Full_Backup_${getColomboDate()}.json`; link.click(); const isDec31 = getColomboDate().endsWith('12-31'); if (confirm(`Backup Done! Reset?`)) { if (isDec31) { cloudData.sixMonthSummary = { halfYearIncome: 0, halfYearExpenses: 0, lastResetDate: getColomboDate() }; } else { cloudData.sixMonthSummary = { halfYearIncome: (cloudData.sixMonthSummary?.halfYearIncome || 0) + mStats.mIncome, halfYearExpenses: (cloudData.sixMonthSummary?.halfYearExpenses || 0) + mStats.mExpenses, lastResetDate: getColomboDate() }; } cloudData.bills = []; cloudData.extraWorks = []; cloudData.teaTransfers = []; cloudData.bankTransfers = []; await saveCloud(`Backup & Reset`); render(); } };
-  window.exportMonthlyCSV = () => { const monthPrefix = getCurrentMonthPrefix(); let csv = 'Bill ID,Date,Customer,PayMethod,Cashier,Floor,Total,Paid,Balance,Status\n'; cloudData.bills.filter(b => b.date.startsWith(monthPrefix)).forEach(b => { const paidAmt = (b.advance || 0) + (b.bankPaid || 0); csv += `${b.id},${b.date},"${b.customer}",${b.payMethod || 'Cash'},${b.cashier},${b.floor},${b.total},${paidAmt},${b.balance},${b.status}\n`; }); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `Roshan_Advertising_Accounts_${monthPrefix}.csv`; link.click(); };
-  window.addNewRateItem = async () => { const cat = document.getElementById('rc_cat').value.trim() || 'General'; const name = document.getElementById('rc_name').value.trim(); const u10m = Number(document.getElementById('rc_u10m').value || 0); const u10p = Number(document.getElementById('rc_u10p').value || 0); const isSqft = document.getElementById('rc_sqft').checked; if (!name) return alert('Name දාන්න.'); const maxId = cloudData.rates.reduce((m, r) => Math.max(m, Number(r.id || 0)), 0); cloudData.rates.push({ id: maxId + 1, cat, name, u10m, u10p: isSqft ? u10p : u10m, isSqft }); await saveCloud(`Added Rate ${name}`); alert('✅ Added!'); render(); };
-  window.saveRateRow = async (idx) => { const r = cloudData.rates[idx]; if (!r) return; r.cat = document.getElementById(`rc_cat_${idx}`).value.trim() || r.cat; r.name = document.getElementById(`rc_name_${idx}`).value.trim() || r.name; r.u10m = Number(document.getElementById(`rc_u10m_${idx}`).value || 0); r.u10p = Number(document.getElementById(`rc_u10p_${idx}`).value || 0); r.isSqft = document.getElementById(`rc_sqft_${idx}`).checked; await saveCloud(`Updated Rate ${r.name}`); alert(`✅ ${r.name} Saved!`); render(); };
-  window.deleteRateRow = async (idx) => { const r = cloudData.rates[idx]; if (!r) return; if (!confirm(`Delete ${r.name}?`)) return; cloudData.rates.splice(idx, 1); await saveCloud(`Deleted Rate ${r.name}`); render(); };
-
-  function renderSplash() { return `<div class="min-h-screen bg-[#111111] flex flex-col items-center justify-center p-6 text-center select-none"><div class="animate-bounce mb-4">${getBrandLogoSVG(110)}</div><div class="text-3xl md:text-5xl font-black tracking-tight mt-2"><span class="text-white">ROSHAN</span><span class="text-[#E31E24]">ADVERTISING</span></div><div class="text-xs md:text-sm font-bold tracking-[0.35em] text-[#9E9E9E] mt-1">SERVICES(PVT)LTD.</div><div class="mt-8 flex items-center gap-2 text-emerald-400 font-extrabold text-sm md:text-base animate-pulse"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span><span>Connecting Network Shared In...</span></div><div class="fixed bottom-6 text-xs font-bold tracking-widest text-gray-400">Powered by <span class="text-white font-black">N.S. Udagedara</span></div></div>`; }
-  function renderTVMonitor() { const bals = calcCashierBalances(); const mStats = calcMonthlyStats(); const today = getColomboDate(); const activeJobs = cloudData.jobs.filter(j => !j.steps.JobComplete); const lowStock = cloudData.stock.filter(s => (s.bought - s.used) <= 1); return `<div class="min-h-screen bg-[#111111] text-white p-5 space-y-5"><div class="flex flex-wrap justify-between items-center border-b border-gray-800 pb-4"><div class="flex items-center gap-3">${getBrandLogoSVG(48)}<div>${getBrandWordmark(true)}<p class="text-[11px] text-gray-400 mt-1">📺 LIVE BOSS TV MONITOR • ${today}</p></div></div><button onclick="ui.tvMode=false; render();" class="bg-[#E31E24] px-4 py-2 rounded-xl font-black text-xs">✕ Exit TV Mode</button></div><div class="grid grid-cols-2 lg:grid-cols-5 gap-3"><div class="bg-[#1b1b1b] border border-emerald-500/40 p-4 rounded-2xl"><div class="text-[11px] font-bold text-emerald-400">Today Cash Drawer</div><div class="text-2xl font-black mt-1">Rs. ${bals.Total.toLocaleString()}</div></div><div class="bg-[#1b1b1b] border border-cyan-500/40 p-4 rounded-2xl"><div class="text-[11px] font-bold text-cyan-400">Today Bank</div><div class="text-2xl font-black mt-1 text-cyan-300">Rs. ${bals.todayBankIncome.toLocaleString()}</div></div><div class="bg-[#1b1b1b] border border-rose-500/40 p-4 rounded-2xl"><div class="text-[11px] font-bold text-rose-400">Today Expenses & Tea</div><div class="text-2xl font-black mt-1 text-rose-300">Rs. ${(bals.todayExpenses + bals.todayTeaDeducted).toLocaleString()}</div></div><div class="bg-[#1b1b1b] border border-amber-500/40 p-4 rounded-2xl"><div class="text-[11px] font-bold text-amber-400">Customer Dues</div><div class="text-2xl font-black mt-1 text-amber-300">Rs. ${mStats.totalCustomerDues.toLocaleString()}</div></div><div class="bg-[#1b1b1b] border border-red-500/40 p-4 rounded-2xl"><div class="text-[11px] font-bold text-red-400">Month Net</div><div class="text-2xl font-black mt-1">Rs. ${mStats.mNet.toLocaleString()}</div></div></div></div>`; }
-  function renderLogin() {
-    const q = ui.searchQuery.toLowerCase(); const filtered = cloudData.staff.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.role.toLowerCase().includes(q));
-    return `<div class="min-h-screen bg-[#111111] text-white p-4"><div class="max-w-6xl mx-auto space-y-4"><div class="brand-header rounded-2xl p-5 shadow-2xl border border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4"><div class="flex items-center gap-3.5">${getBrandLogoSVG(64)}<div>${getBrandWordmark(true)}<p class="text-[11px] text-gray-300 mt-1">Medirigiriya • 027 224 8828</p></div></div><div class="text-center md:text-right"><div class="text-lg font-black text-amber-300">${getSmartGreeting()}</div><div class="text-xs text-gray-200 mt-0.5 max-w-md">${getDailyQuote()}</div></div></div><div class="flex flex-wrap justify-between items-center gap-2"><input type="text" placeholder="🔍 Search..." value="${ui.searchQuery}" oninput="ui.searchQuery=this.value; render();" class="w-full sm:w-80 px-4 py-2.5 rounded-xl bg-white text-gray-900 font-bold text-xs" /><button onclick="ui.showAddMember=!ui.showAddMember; render();" class="bg-[#E31E24] text-white font-black px-4 py-2.5 rounded-xl text-xs">+ Add New Member</button></div>${ui.showAddMember ? `<div class="bg-[#1c1c1c] border border-red-600 p-4 rounded-2xl grid grid-cols-1 sm:grid-cols-5 gap-2"><input id="nm_name" type="text" placeholder="Member Name" class="px-3 py-2 rounded-lg text-black text-xs font-bold" /><select id="nm_role" class="px-3 py-2 rounded-lg text-black text-xs font-bold"><option>Designer</option><option>Cashier</option><option>Management</option><option>Printing Operator</option></select><input id="nm_tel" type="text" placeholder="WhatsApp" class="px-3 py-2 rounded-lg text-black text-xs font-bold" /><input id="nm_pass" type="text" placeholder="Password" class="px-3 py-2 rounded-lg text-black text-xs font-bold" /><button onclick="addNewMember()" class="bg-emerald-600 text-white font-black rounded-lg text-xs py-2">Save</button></div>` : ''}<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">${filtered.map(s => { const isOpen = ui.expandedLoginId === s.id; return `<div onclick="if(ui.expandedLoginId!=='${s.id}'){ui.expandedLoginId='${s.id}'; render();}" class="brand-card rounded-xl p-4 border ${isOpen ? 'border-[#E31E24] ring-2 ring-[#E31E24]' : 'border-gray-800'} cursor-pointer"><div class="flex justify-between"><span class="text-xs font-black bg-black px-2 py-0.5 rounded text-gray-300">${s.id}</span>${getTenureBadge(s)}</div><div class="flex items-center gap-3 mt-3">${s.photo ? `<img src="${s.photo}" class="w-11 h-11 rounded-full object-cover border-2 border-[#E31E24]" />` : `<div class="w-11 h-11 rounded-full bg-black border flex items-center justify-center font-black text-[#E31E24]">${s.name.charAt(0)}</div>`}<div><h3 class="text-sm font-extrabold text-white">${s.name}</h3><p class="text-[11px] text-gray-400">${s.role}</p></div></div>${isOpen ? `<div class="mt-3 pt-3 border-t border-gray-800 flex gap-2" onclick="event.stopPropagation()"><input id="pwd_${s.id}" type="password" placeholder="Password" onkeydown="if(event.key==='Enter') loginUser('${s.id}')" class="w-full px-3 py-1.5 rounded-lg bg-white text-gray-900 text-xs font-bold" /><button onclick="loginUser('${s.id}')" class="bg-[#E31E24] text-white font-bold px-3 py-1.5 rounded-lg text-xs">Login</button></div>` : `<p class="text-[10px] text-gray-400 mt-3">Tap to login →</p>`}</div>`; }).join('')}</div><div class="text-center text-[11px] text-gray-500 pt-4">Powered by N.S. Udagedara</div></div></div>`;
-  }
-  function getNavItems() {
-    const u = ui.user; const designerMode = isDesignerOnly(u); const pendingPrintsCount = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length; const pendingLeavesCount = (cloudData.leaveRequests || []).filter(l => l.status === 'Pending Boss Approval').length;
-    return [{ id: 'dashboard', icon: '🏠', label: 'Dashboard', allow: true }, { id: 'newbill', icon: '🧾', label: 'New Bill', allow: !designerMode }, { id: 'cashier', icon: '💰', label: 'Cashier', allow: !designerMode }, { id: 'jobs', icon: '🛠', label: 'Jobs & Bank', allow: true }, { id: 'printqueue', icon: '🖨', label: 'Print Queue', badge: pendingPrintsCount, allow: true }, { id: 'quotation', icon: '📄', label: 'Quotation', allow: !designerMode }, { id: 'tea', icon: '☕', label: 'Tea & Leaves', allow: true }, { id: 'stock', icon: '📦', label: 'Stock Alert', allow: true }, { id: 'bookings', icon: '🚗', label: 'Sticker & Fixing', allow: true }, { id: 'rates', icon: '📐', label: 'Rate Card', allow: !designerMode }, { id: 'pending', icon: '⏳', label: 'Pending Bills', allow: !designerMode }, { id: 'payroll', icon: '💳', label: 'Payroll & OT', allow: isManagerOrCashier(u) }, { id: 'leave', icon: '📅', label: 'Leave Roster', badge: isBossOrFamily(u) ? pendingLeavesCount : 0, allow: true }, { id: 'messages', icon: '💬', label: 'Team Chat & WA', allow: true }, { id: 'report', icon: '📊', label: '6PM Report', allow: isManagerOrCashier(u) }, { id: 'profile', icon: '👤', label: 'My Profile', allow: true }].filter(n => n.allow);
-  }
-  function renderNavButtonsList() {
-    return getNavItems().map(n => { const active = ui.page === n.id; return `<button onclick="setPage('${n.id}')" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-extrabold ${active ? 'bg-gradient-to-r from-[#E31E24] to-red-700 text-white shadow-lg scale-[1.02]' : 'bg-white/[0.04] hover:bg-white/[0.12] text-gray-200 border border-white/[0.05]'}"><span class="flex items-center gap-2.5"><span class="text-sm">${n.icon}</span><span>${n.label}</span></span>${n.badge > 0 ? `<span class="px-2 py-0.5 text-[10px] font-black rounded-full ${active ? 'bg-white text-[#E31E24]' : 'bg-amber-400 text-black'}">${n.badge}</span>` : (active ? `<span class="text-[10px]">●</span>` : '')}</button>`; }).join('');
-  }
-  function renderTopBarAndAlerts() {
-    const u = ui.user; const pendingPrintsCount = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length; const alerts = getActiveAlerts();
-    return `<div class="brand-header text-white shadow-lg sticky top-0 z-40"><div class="px-4 py-2 flex justify-between items-center"><div class="flex items-center gap-2.5"><button onclick="ui.menuOpen=!ui.menuOpen; render();" class="lg:hidden bg-white/15 px-2.5 py-1.5 rounded-lg text-white font-black text-lg">☰</button><button onclick="ui.sidebarPinned=!ui.sidebarPinned; render();" class="hidden lg:flex bg-white/15 px-2.5 py-1.5 rounded-lg text-white font-black text-xs">${ui.sidebarPinned ? '📌 Pinned' : '☰ Menu'}</button><div onclick="setPage('dashboard')" class="flex items-center gap-2 cursor-pointer">${getBrandLogoSVG(36)}<div><div class="font-black text-xs tracking-tight"><span class="text-white">ROSHAN</span><span class="text-red-300">ADVERTISING</span></div><div class="text-[10px] text-gray-300">${u.id} • ${u.name}</div></div></div></div><div class="flex items-center gap-1.5"><button onclick="setPage('printqueue')" class="bg-amber-500 text-black px-2.5 py-1.5 rounded-lg text-[11px] font-black">🖨 Print (${pendingPrintsCount})</button>${isBossOrFamily(u) ? `<button onclick="ui.tvMode=true; render();" class="bg-black/70 border px-2.5 py-1.5 rounded-lg text-[11px] font-black">📺 TV</button>` : ''}<button onclick="logout()" class="bg-[#E31E24] px-2.5 py-1.5 rounded-lg text-[11px] font-bold">Logout</button></div></div></div>${ui.menuOpen ? `<div class="fixed inset-0 bg-black/75 z-50 flex lg:hidden" onclick="ui.menuOpen=false; render();"><div class="w-72 bg-[#141414] text-white h-full p-4 overflow-y-auto border-r border-red-900/40" onclick="event.stopPropagation()"><div class="flex justify-between items-center pb-3 mb-3 border-b border-gray-800"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#E31E24] animate-ping"></span><span class="font-black text-xs">QUICK MENU</span></div><button onclick="ui.menuOpen=false; render();" class="bg-white/10 w-7 h-7 rounded-full text-xs font-black">✕</button></div><div class="space-y-1.5">${renderNavButtonsList()}</div></div></div>` : ''}${alerts.length ? `<div class="max-w-7xl mx-auto px-3 pt-3 space-y-2">${alerts.map(a => `<div class="p-3 rounded-xl border flex flex-wrap justify-between items-center gap-2 ${a.type==='bday' ? 'bg-purple-100 border-purple-400 text-purple-950' : a.type==='urgent' || a.type==='stock' ? 'bg-red-50 border-red-400 text-red-950' : 'bg-amber-50 border-amber-400 text-amber-950'}"><div class="text-xs"><div class="font-black">${a.title}</div><div>${a.msg}</div></div><div class="flex gap-1.5"><button onclick="openWhatsApp('', '${a.waText.replace(/'/g, "\\'")}')" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold">📲 WhatsApp</button>${!a.noDismiss ? `<button onclick="cloudData.remindersDone['${a.key}']=true; saveCloud('Done'); render();" class="bg-gray-900 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold">✅ Done</button>` : ''}</div></div>`).join('')}</div>` : ''}`;
-  }
-  function renderDashboard() {
-    const u = ui.user; const designerMode = isDesignerOnly(u); const bals = calcCashierBalances(); const mStats = calcMonthlyStats(); const myTeaRem = u.teaEarned - u.teaTaken; const todayTotalIncome = bals.todayCashIncome + bals.todayBankIncome; const todayPettyCash = bals.todayExpenses + bals.todayTeaDeducted;
-    if (designerMode) {
-      const myActiveJobs = cloudData.jobs.filter(j => !j.steps.JobComplete && j.designer.toLowerCase().includes(u.name.toLowerCase())); const myPrintedAlerts = (cloudData.printQueue || []).filter(p => p.designer === u.name && p.status === 'Printed');
-      return `<div class="max-w-4xl mx-auto p-4 space-y-4"><div class="bg-white rounded-2xl p-5 shadow border"><div class="flex justify-between"><div class="flex items-center gap-3">${u.photo ? `<img src="${u.photo}" class="w-12 h-12 rounded-full object-cover border-2 border-[#E31E24]" />` : ''}<div><h2 class="text-lg font-black">👋 ${u.name}</h2><p class="text-xs text-gray-500">Designer Workspace</p></div></div><div class="flex gap-2"><button onclick="setPage('printqueue')" class="bg-[#E31E24] text-white px-3 py-1.5 rounded-xl text-xs font-black">🖨 Send Print</button><button onclick="setPage('profile')" class="bg-gray-900 text-white px-3 py-1.5 rounded-xl text-xs">👤 Profile</button></div></div></div></div>`;
-    }
-    return `<div class="max-w-6xl mx-auto p-4 space-y-4"><div class="bg-white rounded-2xl p-5 shadow border space-y-4"><div class="flex flex-wrap justify-between items-center gap-3 border-b pb-3"><div><p class="text-[11px] font-black text-gray-500">TODAY CASH & ACCOUNTS SUMMARY</p><p class="text-xs text-gray-600 mt-0.5">Ground: <b>Rs.${bals.Ground.toLocaleString()}</b> | Upper: <b>Rs.${bals.Upper.toLocaleString()}</b></p></div><div class="flex gap-2"><button onclick="setPage('newbill')" class="bg-[#E31E24] text-white font-black px-4 py-2 rounded-xl text-xs">+ New Bill</button><button onclick="setPage('cashier')" class="bg-emerald-600 text-white font-black px-4 py-2 rounded-xl text-xs">🧮 Cash Counter</button><button onclick="setPage('report')" class="bg-black text-white font-black px-4 py-2 rounded-xl text-xs">🖨 Report</button></div></div><div class="grid grid-cols-2 lg:grid-cols-4 gap-3"><div class="bg-emerald-50 border p-3.5 rounded-xl"><span class="text-[11px] font-black text-emerald-800 block">💰 Daily Balance</span><span class="text-2xl font-black block">Rs. ${bals.Total.toLocaleString()}</span></div><div class="bg-blue-50 border p-3.5 rounded-xl"><span class="text-[11px] font-black block">📈 Today Income</span><span class="text-2xl font-black block">Rs. ${todayTotalIncome.toLocaleString()}</span></div><div class="bg-rose-50 border p-3.5 rounded-xl"><span class="text-[11px] font-black block">💸 Petty Cash</span><span class="text-2xl font-black block">Rs. ${todayPettyCash.toLocaleString()}</span></div><div class="bg-amber-50 border p-3.5 rounded-xl"><span class="text-[11px] font-black block">📅 Monthly Income</span><span class="text-2xl font-black block">Rs. ${mStats.mIncome.toLocaleString()}</span></div></div></div></div>`;
-  }
-  function renderNewBill() {
-    const d = ui.draftBill; const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0); const total = itemsTotal + Number(d.serviceCharge || 0); const adv = d.pending ? 0 : Number(d.advance || 0); const bal = Math.max(0, total - adv); const nextBillNo = 'RADS-' + String(cloudData.bills.length + 1).padStart(3, '0');
-    return `<div class="max-w-7xl mx-auto p-3 space-y-4"><div class="grid grid-cols-1 lg:grid-cols-12 gap-4"><div class="lg:col-span-7 bg-white p-4 rounded-2xl shadow border space-y-3"><div class="flex justify-between border-b pb-2"><span class="font-black text-sm">🧾 NEW BILL (${nextBillNo}) - 72MM FIXED</span><span class="text-xs font-bold text-[#E31E24]">Pirenna Fix Applied ✅</span></div><datalist id="clients_list">${(cloudData.clientsDir || []).map(c => `<option value="${c.name}">${c.phone}</option>`).join('')}</datalist><div class="grid grid-cols-2 sm:grid-cols-4 gap-2"><div class="col-span-2"><label class="text-[11px] font-bold">Customer</label><input id="bill_cust_name" list="clients_list" type="text" value="${d.customer}" oninput="checkCustomerDebt(this.value)" placeholder="Customer" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" /></div><div><label class="text-[11px] font-bold">WhatsApp</label><input type="text" value="${d.custPhone}" oninput="ui.draftBill.custPhone=this.value;" placeholder="07X" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" /></div><div><label class="text-[11px] font-bold">Payment</label><select onchange="ui.draftBill.payMethod=this.value; recalcBillLive();" class="w-full border rounded-lg px-2 py-1.5 text-xs font-black bg-amber-50"><option ${d.payMethod==='Cash'?'selected':''}>Cash</option><option ${d.payMethod==='Bank Transfer'?'selected':''}>Bank Transfer</option></select></div></div><div id="cust_debt_warn" class="hidden bg-red-100 border border-red-400 text-red-900 p-2 rounded-lg text-xs"></div><datalist id="rate_items_list">${cloudData.rates.map(r => `<option value="${r.name}">${r.isSqft ? `10-: Rs.${r.u10m}` : `Rs.${r.u10m}`}</option>`).join('')}</datalist><div class="space-y-2"><div class="flex justify-between"><span class="text-xs font-black">Items</span><button onclick="ui.draftBill.items.push({baseName:'',w:'',h:'',rate:'',manualRate:false,name:'',qty:1,price:0}); render();" class="bg-black text-white px-2.5 py-1 rounded-lg text-xs">+ Add Item</button></div>${d.items.map((it, idx) => `<div class="bg-gray-50 p-2 rounded-xl border grid grid-cols-12 gap-1.5 items-end"><div class="col-span-12 sm:col-span-4"><input list="rate_items_list" type="text" value="${it.baseName || it.name}" onchange="onBillItemSelect(${idx}, this.value, 'draftBill')" class="w-full border rounded px-2 py-1.5 text-xs font-bold" /></div><div class="col-span-2"><input type="number" value="${it.w || ''}" placeholder="W" oninput="ui.draftBill.items[${idx}].w=this.value; onBillSizeOrRateChange(${idx}, 'draftBill', 'size');" class="w-full border rounded px-1 py-1.5 text-xs text-center" /></div><div class="col-span-2"><input type="number" value="${it.h || ''}" placeholder="H" oninput="ui.draftBill.items[${idx}].h=this.value; onBillSizeOrRateChange(${idx}, 'draftBill', 'size');" class="w-full border rounded px-1 py-1.5 text-xs text-center" /></div><div class="col-span-3"><input type="number" value="${it.rate || ''}" placeholder="Rate" oninput="ui.draftBill.items[${idx}].rate=this.value; onBillSizeOrRateChange(${idx}, 'draftBill', 'rate');" class="w-full border border-amber-300 rounded px-1.5 py-1.5 text-xs font-black text-center bg-amber-50" /></div><div class="col-span-1"><input type="number" value="${it.qty}" oninput="ui.draftBill.items[${idx}].qty=Number(this.value||0); syncBillPreviewItems();" class="w-full border rounded px-1 py-1.5 text-xs text-center" /></div><div class="col-span-2"><input type="number" value="${it.price}" oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); syncBillPreviewItems();" class="w-full border rounded px-1.5 py-1.5 text-xs font-black text-right" /></div></div>`).join('')}</div><div class="grid grid-cols-3 gap-2 pt-2 border-t"><div><label class="text-[11px] font-bold">Service Charge</label><input type="number" value="${d.serviceCharge || ''}" oninput="ui.draftBill.serviceCharge=Number(this.value||0); recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold" /></div><div><label class="text-[11px] font-bold">Service Note</label><input type="text" value="${d.serviceNote}" oninput="ui.draftBill.serviceNote=this.value;" class="w-full border rounded px-2 py-1.5 text-xs" /></div><div><label class="text-[11px] font-bold">Register</label><select onchange="ui.draftBill.floor=this.value;" class="w-full border rounded px-2 py-1.5 text-xs font-bold"><option ${d.floor==='Ground'?'selected':''}>Ground</option><option ${d.floor==='Upper'?'selected':''}>Upper</option><option ${d.floor==='Counter3'?'selected':''}>Counter3</option></select></div></div><div class="bg-amber-50 border p-2 rounded-lg flex items-center gap-2"><input type="checkbox" ${d.pending ? 'checked' : ''} onchange="ui.draftBill.pending=this.checked; if(this.checked) ui.draftBill.advance=0; render();" /><label class="text-xs font-black">Pending (Advance=0)</label></div><div class="grid grid-cols-3 gap-2"><div class="bg-gray-100 p-2 rounded-lg"><span class="text-[10px] font-bold block">TOTAL</span><span id="bill_total_disp" class="text-base font-black">Rs. ${total.toLocaleString()}</span></div><div class="bg-blue-50 p-2 rounded-lg border"><label class="text-[10px] font-bold block">PAID</label><input type="number" ${d.pending ? 'disabled' : ''} value="${d.advance || ''}" oninput="ui.draftBill.advance=Number(this.value||0); recalcBillLive();" class="w-full border rounded px-2 py-0.5 text-sm font-black" /></div><div class="bg-red-50 p-2 rounded-lg border"><span class="text-[10px] font-bold block">BALANCE</span><span id="bill_bal_disp" class="text-base font-black text-red-700">Rs. ${bal.toLocaleString()}</span></div></div><div class="flex flex-wrap gap-2"><button onclick="saveNewBill(false)" class="bg-emerald-600 text-white font-bold px-3 py-2 rounded-xl text-xs">Save Bill</button><button onclick="saveNewBill(true)" class="bg-black text-white font-black px-3 py-2 rounded-xl text-xs">🖨 Save & Print 72mm Pirenna</button><button onclick="printThermal72mm()" class="bg-[#E31E24] text-white font-black px-3 py-2 rounded-xl text-xs">🖨 Print Again (72mm)</button></div></div><div class="lg:col-span-5 space-y-3"><div class="bg-gray-200 p-3 rounded-2xl"><p class="text-[10px] font-bold text-center mb-1.5">✅ 72MM FULL WIDTH PREVIEW (XPrinter 80mm Paper → 72mm Print Area Pirenna)</p><div id="thermal-bill-print" class="thermal-preview shadow"><div class="text-center text-base font-black tracking-tight uppercase leading-tight">ROSHAN ADVERTISING</div><div class="text-center text-xs font-black tracking-wider mt-0.5">SERVICES (PVT) LTD.</div><div class="text-center text-xs mt-0.5">Medirigiriya</div><div class="text-center text-xs">027 224 8828 / 071 555 5534</div><div class="border-t-2 border-black my-1.5"></div><div class="space-y-0.5 text-xs"><div class="flex justify-between"><span>BILL:</span><span class="font-black">${nextBillNo}</span></div><div class="flex justify-between"><span>DATE:</span><span>${getColomboDate()}</span></div><div class="flex justify-between"><span>MODE:</span><span>${d.payMethod}</span></div><div class="flex justify-between"><span>CASHIER:</span><span>${ui.user.name}</span></div><div class="pt-0.5 break-words">CUST: <span id="prev_cust" class="font-black">${d.customer || '-'}</span></div></div><div class="border-t-2 border-dashed border-black my-1.5"></div><div id="prev_items_list" class="space-y-1">${d.items.map(it => `<div class="py-1 border-b border-dotted border-black"><div class="text-sm font-black leading-snug break-words">${it.name || 'Item'}</div><div class="flex justify-between text-xs mt-0.5"><span>${it.qty} x Rs.${Number(it.price).toLocaleString()}</span><span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span></div></div>`).join('')}</div>${Number(d.serviceCharge) > 0 ? `<div class="py-1 border-b border-dotted border-black flex justify-between text-xs"><span>Svc (${d.serviceNote || 'Charge'})</span><span class="font-black">Rs.${Number(d.serviceCharge).toLocaleString()}</span></div>` : ''}<div class="border-t-2 border-dashed border-black my-1.5"></div><div class="space-y-1"><div class="flex justify-between text-sm font-black"><span>TOTAL:</span><span id="prev_total">Rs. ${total.toLocaleString()}</span></div><div class="flex justify-between text-xs font-black"><span>PAID:</span><span id="prev_adv">Rs. ${adv.toLocaleString()}</span></div></div><div class="border-y-2 border-black my-1.5 py-1 flex justify-between text-base font-black"><span>BAL:</span><span id="prev_bal">Rs. ${bal.toLocaleString()}</span></div><div class="text-center text-xs font-black mt-1.5">Thank You! Come Again.</div><div class="text-center text-[11px] mt-0.5">Next Branch Hingurakgoda.</div></div></div></div></div></div>`;
-  }
-  function renderPrintQueue() { const dp = ui.draftPrint; return `<div class="max-w-6xl mx-auto p-4 space-y-4"><div class="bg-white p-4 rounded-2xl shadow border"><h2 class="font-black text-sm">🖨 SEND PRINT ORDER</h2><div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3"><input type="text" value="${dp.jobId}" oninput="ui.draftPrint.jobId=this.value;" placeholder="Job No" class="border rounded-lg px-2.5 py-1.5 text-xs font-black" /><input type="text" value="${dp.filePath}" oninput="ui.draftPrint.filePath=this.value;" class="col-span-2 border rounded-lg px-2.5 py-1.5 text-xs font-bold bg-amber-50" /></div><button onclick="submitPrintOrder()" class="mt-3 bg-[#E31E24] text-white font-black px-5 py-2 rounded-xl text-xs">🚀 Send</button></div><div class="bg-white p-4 rounded-2xl shadow border space-y-2"><h3 class="font-black text-sm">QUEUE (${(cloudData.printQueue || []).length})</h3>${(cloudData.printQueue || []).map(pq => `<div class="border rounded-2xl p-3 ${pq.status === 'Pending Print' ? 'bg-amber-50' : 'bg-emerald-50'}"><div class="flex justify-between"><span class="bg-black text-white text-xs font-black px-2 py-0.5 rounded">${pq.id}</span><span class="text-xs font-black ${pq.status==='Printed'?'text-emerald-600':'text-amber-600'}">${pq.status}</span></div><div class="text-xs mt-1">${pq.filePath}</div>${pq.status==='Pending Print' ? `<button onclick="markPrintOrderDone('${pq.id}')" class="mt-2 bg-emerald-600 text-white px-3 py-1 rounded text-xs">✅ Printed</button>` : ''}</div>`).join('')}</div></div>`; }
-  function renderCashierHome() { const bals = calcCashierBalances(); return `<div class="max-w-6xl mx-auto p-4"><div class="bg-white p-4 rounded-2xl shadow">Cashier - Ground Rs.${bals.Ground} | Upper Rs.${bals.Upper} | Total Rs.${bals.Total}</div></div>`; }
-  function renderJobs() { return `<div class="max-w-7xl mx-auto p-4"><div class="bg-white p-4 rounded-2xl">Jobs: ${cloudData.jobs.length}</div></div>`; }
-  function renderQuotation() { const dq = ui.draftQuote; const total = dq.items.reduce((s,it)=>s+it.qty*it.price,0); return `<div class="max-w-5xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4"><div class="lg:col-span-6 bg-white p-4 rounded-2xl"><h2 class="font-black text-sm">QUOTATION</h2><div class="mt-3">Total Rs.${total}</div><button onclick="downloadZeroStoragePDF('quote_pdf_box','Quotation.pdf')" class="mt-3 bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs">📄 Download</button></div><div id="quote_pdf_box" class="lg:col-span-6 bg-white p-5 rounded-xl border"><div class="font-black">ROSHAN ADVERTISING - QUOTATION Rs.${total}</div></div></div>`; }
-  function renderRateCard() { return `<div class="max-w-5xl mx-auto p-4"><div class="bg-white p-4 rounded-2xl">Rate Card ${cloudData.rates.length} items</div></div>`; }
-  function renderTeaMoney() { return `<div class="max-w-5xl mx-auto p-4"><div class="bg-white p-4 rounded-2xl">Tea Purse Rs.${cloudData.teaPurse}</div></div>`; }
-  function renderStock() { return `<div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl">Stock ${cloudData.stock.length}</div>`; }
-  function renderBookings() { return `<div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl">Bookings</div>`; }
-  function renderPayrollAndFingerprint() { return `<div class="max-w-6xl mx-auto p-4 bg-white rounded-2xl">Payroll</div>`; }
-  function renderDailyReport() {
-    const today = getColomboDate(); const bals = calcCashierBalances();
-    return `<div class="max-w-4xl mx-auto p-4 space-y-4"><div class="bg-white p-4 rounded-2xl flex justify-between"><h2 class="font-black">6PM Report</h2><div class="flex gap-2"><button onclick="document.body.classList.add('report-printing'); window.print(); setTimeout(()=>document.body.classList.remove('report-printing'), 1000);" class="bg-black text-white px-3 py-1.5 rounded-lg text-xs">🖨 Print A4</button></div></div><div id="report-print-area" class="bg-white p-6 rounded-2xl border"><h3 class="font-black">Daily Report ${today}</h3><div>Cash Rs.${bals.Total} | Bank Rs.${bals.todayBankIncome}</div></div></div>`;
-  }
-  function renderProfile() { const u = ui.user; return `<div class="max-w-2xl mx-auto p-4 bg-white rounded-2xl"><h2 class="font-black">${u.name}</h2><button onclick="logout()" class="bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs mt-3">Logout</button></div>`; }
-  function renderLeaveRoster() { return `<div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl">Leave Roster</div>`; }
-  function renderMessagesAndChat() { return `<div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl">Team Chat</div>`; }
-
-  function render() {
-    const appEl = document.getElementById('app');
-    if (!ui.splashDone) { appEl.innerHTML = renderSplash(); return; }
-    if (!ui.user) { appEl.innerHTML = renderLogin(); return; }
-    if (ui.tvMode && isBossOrFamily(ui.user)) { appEl.innerHTML = renderTVMonitor(); return; }
-    let body = '';
-    switch (ui.page) {
-      case 'dashboard': body = renderDashboard(); break;
-      case 'newbill': body = renderNewBill(); break;
-      case 'cashier': body = renderCashierHome(); break;
-      case 'jobs': body = renderJobs(); break;
-      case 'printqueue': body = renderPrintQueue(); break;
-      case 'quotation': body = renderQuotation(); break;
-      case 'tea': body = renderTeaMoney(); break;
-      case 'stock': body = renderStock(); break;
-      case 'bookings': body = renderBookings(); break;
-      case 'payroll': body = renderPayrollAndFingerprint(); break;
-      case 'report': body = renderDailyReport(); break;
-      case 'profile': body = renderProfile(); break;
-      case 'leave': body = renderLeaveRoster(); break;
-      case 'messages': body = renderMessagesAndChat(); break;
-      case 'rates': body = renderRateCard(); break;
-      case 'pending': const pBills = cloudData.bills.filter(b => b.status === 'Pending' || b.status === 'Balance Due'); body = `<div class="max-w-4xl mx-auto p-4 bg-white rounded-2xl mt-4">Pending ${pBills.length}</div>`; break;
-      default: body = renderDashboard();
-    }
-    const pinnedSidebarHTML = ui.sidebarPinned ? `<aside class="hidden lg:block w-64 shrink-0 bg-[#141414] text-white min-h-[calc(100vh-52px)] p-3.5 border-r border-gray-800 sticky top-[52px]"><div class="space-y-1.5">${renderNavButtonsList()}</div></aside>` : '';
-    appEl.innerHTML = `${renderTopBarAndAlerts()}<div class="flex">${pinnedSidebarHTML}<main class="flex-1 min-w-0 pb-10">${body}</main></div>`;
-  }
-  render();
-</script>
-</body>
-</html>
