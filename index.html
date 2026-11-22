@@ -105,6 +105,8 @@
   </style>
 <style>
 #rads-print-root { display:none }
+.rads-quick-bill { position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));width:64px;height:64px;z-index:45;border-radius:50%;background:#b41327;color:white;font-weight:800;box-shadow:0 5px 16px #0005 }
+@media print { .rads-quick-bill { display:none!important } }
 #rads-bill-review { width:min(95vw,560px); max-height:90dvh; margin:auto; overflow:auto; border:1px solid #ccc; border-radius:16px; padding:16px; background:#fff; color:#111 }
 #rads-bill-review::backdrop { background:#0009 }
 #rads-bill-review h2 { font-size:20px;font-weight:800 }
@@ -1578,9 +1580,6 @@
         <div class="px-4 py-2 flex justify-between items-center">
           <div class="flex items-center gap-2.5">
             <button onclick="ui.menuOpen=!ui.menuOpen; render();" class="lg:hidden bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white font-black text-lg leading-none">☰</button>
-            <button onclick="ui.sidebarPinned=!ui.sidebarPinned; render();" title="Pin / Unpin Left Menu" class="hidden lg:flex items-center gap-1 bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white font-black text-xs">
-              ${ui.sidebarPinned ? '📌 Pinned' : '☰ Menu'}
-            </button>
             <div onclick="setPage('dashboard')" class="flex items-center gap-2 cursor-pointer">
               ${getBrandLogoSVG(36)}
               <div>
@@ -3049,7 +3048,10 @@ function takeBillSnapshot() {
     return {...i,qty,price,section:workSection(i)};
   });
   if (d.items.some(isPlate) && (d.customer==='-' || !d.custPhone || !d.vehicle?.trim())) throw Error('Number Plate සඳහා නම, WhatsApp අංකය සහ vehicle number එක දාන්න.');
-  if (items.some(isPlate)) d.floor='Ground';
+  if (items.some(isPlate)) {
+    if(!/^[A-Z]{2} [0-9]{4}$/.test(d.vehicle))throw Error('වාහන අංකයට ඉංග්‍රීසි අකුරු 2ක් සහ ඉලක්කම් 4ක් දාන්න.');
+    d.floor='Ground';
+  }
   if (!FLOOR[d.floor]) throw Error('Cashier එක තෝරන්න.');
   d.serviceCharge = fixed(d.serviceCharge||0);
   d.total = fixed(d.items.reduce((sum,i)=>sum+i.price*i.qty,0)+d.serviceCharge);
@@ -3207,8 +3209,13 @@ calcCashierBalances = function(state=cloudData) {
   for(const [entries,label] of [[state.extraWorks,'todayExpenses'],[state.teaTransfers,'todayTeaDeducted']]){
     for(const p of (entries||[]).filter(p=>p.date===day)){
       result[p.kind==='withdrawal'?'todayWithdrawals':label]+=Number(p.amount);
-      result[FLOOR[p.floor]?p.floor:'Ground']-=Number(p.amount);
+      if(p.kind!=='petty-settled')result[FLOOR[p.floor]?p.floor:'Ground']-=Number(p.amount);
     }
+  }
+  for(const advance of state.pettyAdvances||[]){
+    if(!FLOOR[advance.floor])continue;
+    if(advance.issuedDate===day)result[advance.floor]-=Number(advance.amount);
+    if(advance.settledDate===day)result[advance.floor]+=Number(advance.returned);
   }
   result.Total=fixed(result.Ground+result.Upper+result.Counter3);
   return result;
@@ -3394,7 +3401,10 @@ window.radsStaff = async mode => {
 window.radsBillButton = (type) => {
   const d=ui.draftBill;
   if(type==='plate'){
-    d.items=[{baseName:'Number Plate',name:'Number Plate',qty:1,price:0,w:'',h:'',rate:''}];
+    if(d.items.some(isPlate)){document.getElementById('rads-plate-prefix')?.focus();return;}
+    const plate={baseName:'Number Plate',name:'Number Plate',qty:1,price:0,w:'',h:'',rate:''};
+    const blank=d.items.findIndex(item=>!item.name&&!item.baseName);
+    if(blank>=0)d.items.splice(blank,1,plate);else d.items.push(plate);
     d.floor='Ground';
   }
   if(type==='paid'){
@@ -3403,21 +3413,116 @@ window.radsBillButton = (type) => {
   }
   if(type==='unpaid'){d.pending=true;d.advance=0;}
   render();
-  if(type==='plate')document.getElementById('bill_cust_name')?.focus();
+  if(type==='plate')document.getElementById('rads-plate-prefix')?.focus();
 };
+function pettyAmount(value) {
+  const raw=String(value??'').trim();
+  if(!/^\d+(?:\.\d{1,2})?$/.test(raw)||!Number.isSafeInteger(Math.round(Number(raw)*100)))return NaN;
+  return fixed(raw);
+}
+function pettyExpense(issued,returned) {
+  if(!Number.isFinite(returned)||returned<0||returned>issued)throw Error('ඉතුරු මුදල අත්තිකාරමට වඩා වැඩි විය නොහැක.');
+  return fixed(issued-returned);
+}
+window.radsIssuePetty=async function(){
+  if(!isBillingRole())return;
+  const person=prompt('මුදල් ගන්නා කෙනා')?.trim();
+  if(!person)return;
+  const reason=prompt('හේතුව (උදා: Pendrive)')?.trim();
+  if(!reason)return;
+  const amount=pettyAmount(prompt('ලබා දුන් මුදල (Rs.)'));
+  if(!Number.isFinite(amount)||amount<=0)return alert('වලංගු මුදලක් දාන්න.');
+  const floor=ui.selectedCashierFloor;
+  if(!confirm(`${FLOOR[floor]} → ${person} · Rs. ${currency(amount)} නිකුත් කරන්නද?`))return;
+  const id=uuid();
+  try {
+    await commitUpdate('Petty cash advance issued',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      if(calcCashierBalances(s)[floor]<amount)throw Error('Cashier එකේ ප්‍රමාණවත් මුදල් නැහැ.');
+      (s.pettyAdvances||=[]).unshift({id,person,reason,amount,floor,issuedDate:todayISO(),issuedBy:p.name});
+    });
+    playSoundEffect('cashOut');
+  }catch(err){alert(err.message);}
+};
+window.radsSettlePetty=async function(id){
+  if(!isBillingRole())return;
+  const row=cloudData.pettyAdvances?.find(a=>a.id===id&&!a.settledDate);
+  if(!row)return;
+  const raw=prompt(`${row.person} · ${row.reason}\nදුන් මුදල Rs. ${currency(row.amount)}\nනැවත ලැබුණු ඉතුරු මුදල දාන්න (Rs.)`);
+  if(raw===null)return;
+  const returned=pettyAmount(raw);
+  try {
+    const expense=pettyExpense(row.amount,returned);
+    if(!confirm(`Cashier ${FLOOR[row.floor]} වෙත ඉතුරු Rs. ${currency(returned)}\nඅදාළ වියදම Rs. ${currency(expense)}\nතහවුරු කරන්නද?`))return;
+    await commitUpdate('Petty cash advance settled',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      const a=s.pettyAdvances?.find(x=>x.id===id);
+      if(!a||a.settledDate)throw Error('මෙම අත්තිකාරම දැනටමත් පියවා ඇත.');
+      const date=todayISO(), amount=pettyExpense(a.amount,returned);
+      Object.assign(a,{returned,expense:amount,settledDate:date,settledBy:p.name});
+      if(amount>0)(s.extraWorks||=[]).unshift({id:'petty-'+id,date,floor:a.floor,person:a.person,reason:a.reason,amount,kind:'petty-settled',by:p.name});
+    });
+    if(returned>0)playSoundEffect('cashIn');
+  }catch(err){alert(err.message);}
+};
+function pettyMarkup(){
+  const rows=cloudData.pettyAdvances||[];
+  return `<section class="bg-white p-4 rounded-2xl shadow border space-y-2">
+    <h3 class="font-black">Petty Cash · අත්තිකාරම්</h3>
+    <button class="bg-black text-white px-3 py-2 rounded-lg" onclick="radsIssuePetty()">+ මුදල් නිකුත් කරන්න</button>
+    <div class="overflow-x-auto"><table class="w-full text-xs text-left">
+    <thead><tr><th>දිනය / Counter</th><th>නම / හේතුව</th><th>දුන් මුදල</th><th>ඉතුරු ලැබුණා</th><th>වියදම</th><th>තත්ත්වය</th></tr></thead>
+    <tbody>${rows.map(a=>`<tr class="border-t"><td class="py-2">${txt(a.issuedDate)} · ${txt(FLOOR[a.floor])}</td><td>${txt(a.person)} · ${txt(a.reason)}</td>
+    <td>${currency(a.amount)}</td><td>${a.settledDate?currency(a.returned):'—'}</td><td>${a.settledDate?currency(a.expense):'—'}</td>
+    <td>${a.settledDate?'පියවා ඇත':`<button type="button" class="bg-emerald-700 text-white rounded px-2 py-1" data-petty-id="${txt(a.id)}">ඉතුරු මුදල භාරගන්න</button>`}</td></tr>`).join('')}</tbody></table></div>
+    ${rows.length?'':'<p class="text-xs text-gray-500">අත්තිකාරම් සටහන් නැහැ.</p>'}</section>`;
+}
+
 const oldRender = render;
 render = function(){
   oldRender();
   if(!ui.user)return;
+  if(isBillingRole()&&!ui.tvMode){
+    const quick=document.createElement('button');
+    quick.type='button';quick.className='rads-quick-bill';quick.textContent='+ බිල';
+    quick.setAttribute('aria-label','අලුත් බිලක් සාදන්න');
+    quick.onclick=()=>{if(ui.page!=='newbill')setPage('newbill');document.getElementById('bill_cust_name')?.focus();};
+    document.getElementById('app').append(quick);
+    if(ui.page==='cashier'){
+      const home=document.querySelector('#app main > div');
+      home?.insertAdjacentHTML('afterbegin',pettyMarkup());
+      home?.querySelectorAll('[data-petty-id]').forEach(button=>{button.onclick=()=>radsSettlePetty(button.dataset.pettyId);});
+    }
+  }
   if(ui.page==='newbill'){
     const d=ui.draftBill;
     const holder=document.getElementById('rads-extra-bill');
     if(holder){
+      const plateIndex=d.items.findIndex(isPlate);
+      const plate=d.items[plateIndex];
+      const vehicle=String(d.vehicle||'').toUpperCase();
       holder.innerHTML=`<div class="rads-actions"><button onclick="radsBillButton('plate')">Number Plate</button><button onclick="radsBillButton('paid')">සම්පූර්ණ ගෙවීම</button><button onclick="radsBillButton('unpaid')">ගෙවීමක් නැහැ</button></div>
       <div class="grid sm:grid-cols-3 gap-2"><label>ශාඛාව<select id="rads-branch">${branches.map(b=>`<option${(d.branch||branches[0])===b?' selected':''}>${b}</option>`).join('')}</select></label>
       <label>Title<select id="rads-title">${['','Mr.','Mrs.','Ms.'].map(t=>`<option${(d.title||'')===t?' selected':''}>${t}</option>`).join('')}</select></label>
-      <label>Vehicle No<input id="rads-vehicle" value="${txt(d.vehicle)}"></label></div><label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>`;
-      for(const [id,key] of [['rads-branch','branch'],['rads-title','title'],['rads-vehicle','vehicle']])document.getElementById(id).oninput=e=>{d[key]=e.target.value;};
+      </div>
+      ${plate?`<div class="grid grid-cols-3 gap-2"><label>අකුරු 2<input id="rads-plate-prefix" maxlength="2" autocapitalize="characters" placeholder="AB" value="${txt(vehicle.replace(/[^A-Z]/g,'').slice(0,2))}"></label>
+      <label>අංක 4<input id="rads-plate-number" maxlength="4" inputmode="numeric" placeholder="1234" value="${txt(vehicle.replace(/[^0-9]/g,'').slice(0,4))}"></label>
+      <label>Plate මිල (Rs.)<input id="rads-plate-price" type="number" min="0.01" step="0.01" value="${plate.price||''}"></label></div>`:''}<label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>`;
+      for(const [id,key] of [['rads-branch','branch'],['rads-title','title']])document.getElementById(id).oninput=e=>{d[key]=e.target.value;};
+      if(plate){
+        const prefix=document.getElementById('rads-plate-prefix'), number=document.getElementById('rads-plate-number'), price=document.getElementById('rads-plate-price');
+        const updateVehicle=()=>{
+          prefix.value=prefix.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,2);
+          number.value=number.value.replace(/[^0-9]/g,'').slice(0,4);
+          d.vehicle=(prefix.value+' '+number.value).trim();
+        };
+        prefix.oninput=number.oninput=updateVehicle;
+        prefix.onkeydown=e=>handleBillEnter(e,'rads-plate-number');
+        number.onkeydown=e=>handleBillEnter(e,'rads-plate-price');
+        const unitPrice=document.getElementById('draftBill_price_'+plateIndex);
+        price.oninput=()=>{plate.price=Number(price.value||0);if(unitPrice)unitPrice.value=price.value;syncBillPreviewItems();};
+        unitPrice?.addEventListener('input',()=>{price.value=unitPrice.value;});
+      }
       document.getElementById('rads-job').onchange=e=>{d.createJob=e.target.checked;};
     }
   }
