@@ -256,7 +256,7 @@
       cashier: 'Apsara',
       floor: 'Ground',
       payMethod: 'Cash',
-      items: [{ baseName: 'Flex (6 Pass)', w: 2, h: 3, name: 'Flex (6 Pass) 2x3', qty: 1, price: 1500 }],
+      items: [{ baseName: 'Flex (6 Pass)', w: 2, h: 3, rate: 250, manualRate: false, name: 'Flex (6 Pass) 2x3', qty: 1, price: 1500 }],
       pending: false,
       serviceCharge: 0,
       serviceNote: '',
@@ -265,7 +265,7 @@
     draftQuote: {
       customer: '',
       custPhone: '',
-      items: [{ baseName: 'Flex (6 Pass)', w: 4, h: 6, name: 'Flex (6 Pass) 4x6', qty: 1, price: 5280 }]
+      items: [{ baseName: 'Flex (6 Pass)', w: 4, h: 6, rate: 220, manualRate: false, name: 'Flex (6 Pass) 4x6', qty: 1, price: 5280 }]
     },
     fpRecords: []
   };
@@ -554,6 +554,17 @@
   window.saveCloud = saveCloud;
   window.playSoundEffect = playSoundEffect;
 
+  window.handleBillEnter = (e, nextId) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const nextEl = document.getElementById(nextId);
+      if (nextEl) {
+        nextEl.focus();
+        if (nextEl.select) nextEl.select();
+      }
+    }
+  };
+
   window.openWhatsApp = (phone, text) => {
     const cleanPhone = formatWhatsAppNumber(phone);
     const url = cleanPhone
@@ -688,18 +699,37 @@
     setTxt('pdf_bal', `Balance Due: Rs. ${bal.toLocaleString()}`);
   };
 
+  window.syncBillPreviewItems = () => {
+    const prevItems = document.getElementById('prev_items_list');
+    if (prevItems) {
+      prevItems.innerHTML = ui.draftBill.items.map(it => `
+        <div class="py-1.5 border-b border-dotted border-black">
+          <div class="text-sm font-black leading-snug">${it.name || 'Item'}</div>
+          <div class="flex justify-between text-sm mt-0.5">
+            <span>Qty: ${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
+            <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+    recalcBillLive();
+  };
+
   window.onBillItemSelect = (idx, val, target = 'draftBill') => {
     const item = ui[target].items[idx];
     item.baseName = val;
+    item.manualRate = false;
     const rateObj = cloudData.rates.find(r => r.name.toLowerCase() === val.toLowerCase());
     if (rateObj) {
       if (rateObj.isSqft) {
         const w = Number(item.w || 1), h = Number(item.h || 1);
         const sqft = w * h;
-        item.price = Math.round(sqft * (sqft < 10 ? rateObj.u10m : rateObj.u10p));
+        const unitRate = sqft < 10 ? rateObj.u10m : rateObj.u10p;
+        item.rate = unitRate;
+        item.price = Math.round(sqft * unitRate);
         item.name = `${rateObj.name} ${w}x${h}`;
       } else {
-        item.w = ''; item.h = '';
+        item.w = ''; item.h = ''; item.rate = rateObj.u10m || 0;
         item.price = rateObj.u10m || item.price || 0;
         item.name = rateObj.name;
       }
@@ -707,35 +737,42 @@
       item.name = val;
     }
     render();
+    setTimeout(() => {
+      const nextEl = document.getElementById(`${target}_w_${idx}`);
+      if (nextEl) { nextEl.focus(); nextEl.select(); }
+    }, 30);
   };
 
-  window.onBillSizeChange = (idx, target = 'draftBill') => {
+  window.onBillSizeOrRateChange = (idx, target = 'draftBill', source = 'size') => {
     const item = ui[target].items[idx];
     const rateObj = cloudData.rates.find(r => r.name.toLowerCase() === (item.baseName || '').toLowerCase());
     const w = Number(item.w || 0), h = Number(item.h || 0);
-    if (rateObj && rateObj.isSqft && w > 0 && h > 0) {
-      const sqft = w * h;
-      item.price = Math.round(sqft * (sqft < 10 ? rateObj.u10m : rateObj.u10p));
-      item.name = `${rateObj.name} ${w}x${h}`;
-    } else if (w > 0 && h > 0) {
-      item.name = `${item.baseName} ${w}x${h}`;
+
+    if (source === 'rate') {
+      item.manualRate = true;
     }
+
+    if (w > 0 && h > 0) {
+      const sqft = w * h;
+      if (!item.manualRate && rateObj && rateObj.isSqft) {
+        item.rate = sqft < 10 ? rateObj.u10m : rateObj.u10p;
+      }
+      const activeRate = Number(item.rate || 0);
+      if (activeRate > 0) {
+        item.price = Math.round(sqft * activeRate);
+      }
+      item.name = item.baseName ? `${item.baseName} ${w}x${h}` : `${w}x${h}`;
+    } else if (Number(item.rate) > 0 && source === 'rate') {
+      item.price = Number(item.rate);
+    }
+
+    const rateInput = document.getElementById(`${target}_rate_${idx}`);
+    if (rateInput && source !== 'rate') rateInput.value = item.rate || '';
     const priceInput = document.getElementById(`${target}_price_${idx}`);
     if (priceInput) priceInput.value = item.price;
+
     if (target === 'draftBill') {
-      const prevItems = document.getElementById('prev_items_list');
-      if (prevItems) {
-        prevItems.innerHTML = ui.draftBill.items.map(it => `
-          <div class="py-1.5 border-b border-dotted border-black">
-            <div class="text-sm font-black leading-snug">${it.name || 'Item'}</div>
-            <div class="flex justify-between text-sm mt-0.5">
-              <span>Qty: ${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
-              <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
-            </div>
-          </div>
-        `).join('');
-      }
-      recalcBillLive();
+      syncBillPreviewItems();
     } else {
       render();
     }
@@ -821,14 +858,14 @@
         window.print();
         ui.draftBill = {
           customer: '', custPhone: '', date: getColomboDate(), cashier: ui.user.name, floor: ui.selectedCashierFloor, payMethod: 'Cash',
-          items: [{ baseName: '', w: '', h: '', name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0
+          items: [{ baseName: '', w: '', h: '', rate: '', manualRate: false, name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0
         };
         render();
       }, 200);
     } else {
       ui.draftBill = {
         customer: '', custPhone: '', date: getColomboDate(), cashier: ui.user.name, floor: ui.selectedCashierFloor, payMethod: 'Cash',
-        items: [{ baseName: '', w: '', h: '', name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0
+        items: [{ baseName: '', w: '', h: '', rate: '', manualRate: false, name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0
       };
       render();
     }
@@ -1764,7 +1801,7 @@
           <div class="lg:col-span-7 bg-white p-4 rounded-2xl shadow border space-y-3">
             <div class="flex justify-between items-center border-b pb-2">
               <span class="font-black text-sm">🧾 NEW BILL (${nextBillNo})</span>
-              <span class="text-xs font-bold text-[#E31E24]">Rate Card Auto-Calc (10 SQFT- / +)</span>
+              <span class="text-xs font-bold text-[#E31E24]">Auto / Manual Rate • Enter Key Ready ↵</span>
             </div>
 
             <datalist id="clients_list">
@@ -1774,15 +1811,23 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div class="col-span-2">
                 <label class="text-[11px] font-bold">Customer Name (Optional)</label>
-                <input list="clients_list" type="text" value="${d.customer}" oninput="checkCustomerDebt(this.value)" placeholder="Customer / Temple..." class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
+                <input id="bill_cust_name" list="clients_list" type="text" value="${d.customer}"
+                  oninput="checkCustomerDebt(this.value)"
+                  onkeydown="handleBillEnter(event, 'bill_cust_phone')"
+                  placeholder="Customer / Temple..." class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">WhatsApp (Optional)</label>
-                <input type="text" value="${d.custPhone}" oninput="ui.draftBill.custPhone=this.value;" placeholder="07X XXX XXXX" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
+                <input id="bill_cust_phone" type="text" value="${d.custPhone}"
+                  oninput="ui.draftBill.custPhone=this.value;"
+                  onkeydown="handleBillEnter(event, 'bill_pay_mode')"
+                  placeholder="07X XXX XXXX" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Payment Mode</label>
-                <select onchange="ui.draftBill.payMethod=this.value; recalcBillLive();" class="w-full border rounded-lg px-2 py-1.5 text-xs font-black bg-amber-50">
+                <select id="bill_pay_mode" onchange="ui.draftBill.payMethod=this.value; recalcBillLive();"
+                  onkeydown="handleBillEnter(event, 'draftBill_item_0')"
+                  class="w-full border rounded-lg px-2 py-1.5 text-xs font-black bg-amber-50">
                   <option ${d.payMethod==='Cash'?'selected':''}>Cash</option>
                   <option ${d.payMethod==='Bank Transfer'?'selected':''}>Bank Transfer</option>
                 </select>
@@ -1797,39 +1842,78 @@
 
             <div class="space-y-2">
               <div class="flex justify-between items-center">
-                <span class="text-xs font-black">Items (Type Item + W x H or Manual Price)</span>
-                <button onclick="ui.draftBill.items.push({baseName:'',w:'',h:'',name:'',qty:1,price:0}); render();" class="bg-black text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ Add Item</button>
+                <span class="text-xs font-black">Items (Auto Rate හෝ Manual Rate / Direct Price)</span>
+                <button onclick="const nIdx=ui.draftBill.items.length; ui.draftBill.items.push({baseName:'',w:'',h:'',rate:'',manualRate:false,name:'',qty:1,price:0}); render(); setTimeout(()=>document.getElementById('draftBill_item_'+nIdx)?.focus(),30);"
+                  class="bg-black text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ Add Item</button>
               </div>
-              ${d.items.map((it, idx) => `
-                <div class="bg-gray-50 p-2 rounded-xl border grid grid-cols-12 gap-1.5 items-center">
-                  <input list="rate_items_list" type="text" value="${it.baseName || it.name}" placeholder="Item (e.g. Flex (6 Pass), A4 Print)"
-                    onchange="onBillItemSelect(${idx}, this.value, 'draftBill')"
-                    class="col-span-12 sm:col-span-5 border rounded px-2 py-1.5 text-xs font-bold bg-white" />
-                  <input type="number" step="0.1" value="${it.w || ''}" placeholder="W"
-                    oninput="ui.draftBill.items[${idx}].w=this.value; onBillSizeChange(${idx}, 'draftBill');"
-                    class="col-span-3 sm:col-span-2 border rounded px-1.5 py-1.5 text-xs font-bold text-center bg-white" />
-                  <input type="number" step="0.1" value="${it.h || ''}" placeholder="H"
-                    oninput="ui.draftBill.items[${idx}].h=this.value; onBillSizeChange(${idx}, 'draftBill');"
-                    class="col-span-3 sm:col-span-2 border rounded px-1.5 py-1.5 text-xs font-bold text-center bg-white" />
-                  <input type="number" value="${it.qty}" placeholder="Qty"
-                    oninput="ui.draftBill.items[${idx}].qty=Number(this.value||0); onBillSizeChange(${idx}, 'draftBill');"
-                    class="col-span-2 sm:col-span-1 border rounded px-1 py-1.5 text-xs font-bold text-center bg-white" />
-                  <input id="draftBill_price_${idx}" type="number" value="${it.price}" placeholder="Price"
-                    oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); onBillSizeChange(${idx}, 'draftBill');"
-                    class="col-span-3 sm:col-span-2 border rounded px-1.5 py-1.5 text-xs font-black text-right bg-white" />
-                  <button onclick="ui.draftBill.items.splice(${idx},1); render();" class="col-span-1 text-red-600 font-black text-center">✕</button>
-                </div>
-              `).join('')}
+              ${d.items.map((it, idx) => {
+                const nextRowOrSvc = (idx + 1 < d.items.length) ? `draftBill_item_${idx + 1}` : 'bill_svc_charge';
+                return `
+                  <div class="bg-gray-50 p-2 rounded-xl border grid grid-cols-12 gap-1.5 items-end">
+                    <div class="col-span-12 sm:col-span-4">
+                      <label class="text-[9px] font-bold text-gray-500 block">Item Name</label>
+                      <input id="draftBill_item_${idx}" list="rate_items_list" type="text" value="${it.baseName || it.name}" placeholder="Flex (6 Pass)..."
+                        onchange="onBillItemSelect(${idx}, this.value, 'draftBill')"
+                        onkeydown="handleBillEnter(event, 'draftBill_w_${idx}')"
+                        class="w-full border rounded px-2 py-1.5 text-xs font-bold bg-white" />
+                    </div>
+                    <div class="col-span-3 sm:col-span-1">
+                      <label class="text-[9px] font-bold text-gray-500 block text-center">W</label>
+                      <input id="draftBill_w_${idx}" type="number" step="0.1" value="${it.w || ''}" placeholder="W"
+                        oninput="ui.draftBill.items[${idx}].w=this.value; onBillSizeOrRateChange(${idx}, 'draftBill', 'size');"
+                        onkeydown="handleBillEnter(event, 'draftBill_h_${idx}')"
+                        class="w-full border rounded px-1 py-1.5 text-xs font-bold text-center bg-white" />
+                    </div>
+                    <div class="col-span-3 sm:col-span-1">
+                      <label class="text-[9px] font-bold text-gray-500 block text-center">H</label>
+                      <input id="draftBill_h_${idx}" type="number" step="0.1" value="${it.h || ''}" placeholder="H"
+                        oninput="ui.draftBill.items[${idx}].h=this.value; onBillSizeOrRateChange(${idx}, 'draftBill', 'size');"
+                        onkeydown="handleBillEnter(event, 'draftBill_rate_${idx}')"
+                        class="w-full border rounded px-1 py-1.5 text-xs font-bold text-center bg-white" />
+                    </div>
+                    <div class="col-span-6 sm:col-span-2">
+                      <label class="text-[9px] font-bold text-amber-800 block text-center">Rate (Manual/Auto)</label>
+                      <input id="draftBill_rate_${idx}" type="number" step="0.1" value="${it.rate || ''}" placeholder="Rate"
+                        oninput="ui.draftBill.items[${idx}].rate=this.value; onBillSizeOrRateChange(${idx}, 'draftBill', 'rate');"
+                        onkeydown="handleBillEnter(event, 'draftBill_qty_${idx}')"
+                        class="w-full border border-amber-300 rounded px-1.5 py-1.5 text-xs font-black text-center bg-amber-50" />
+                    </div>
+                    <div class="col-span-3 sm:col-span-1">
+                      <label class="text-[9px] font-bold text-gray-500 block text-center">Qty</label>
+                      <input id="draftBill_qty_${idx}" type="number" value="${it.qty}" placeholder="Qty"
+                        oninput="ui.draftBill.items[${idx}].qty=Number(this.value||0); syncBillPreviewItems();"
+                        onkeydown="handleBillEnter(event, 'draftBill_price_${idx}')"
+                        class="w-full border rounded px-1 py-1.5 text-xs font-bold text-center bg-white" />
+                    </div>
+                    <div class="col-span-7 sm:col-span-2">
+                      <label class="text-[9px] font-bold text-gray-500 block text-right">Unit Price</label>
+                      <input id="draftBill_price_${idx}" type="number" value="${it.price}" placeholder="Price"
+                        oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); syncBillPreviewItems();"
+                        onkeydown="handleBillEnter(event, '${nextRowOrSvc}')"
+                        class="w-full border rounded px-1.5 py-1.5 text-xs font-black text-right bg-white" />
+                    </div>
+                    <div class="col-span-2 sm:col-span-1 text-center pb-1.5">
+                      <button onclick="ui.draftBill.items.splice(${idx},1); render();" class="text-red-600 font-black">✕</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
 
             <div class="grid grid-cols-3 gap-2 pt-2 border-t">
               <div>
                 <label class="text-[11px] font-bold">Service Charge</label>
-                <input type="number" value="${d.serviceCharge || ''}" placeholder="0" oninput="ui.draftBill.serviceCharge=Number(this.value||0); render();" class="w-full border rounded px-2 py-1.5 text-xs font-bold" />
+                <input id="bill_svc_charge" type="number" value="${d.serviceCharge || ''}" placeholder="0"
+                  oninput="ui.draftBill.serviceCharge=Number(this.value||0); recalcBillLive();"
+                  onkeydown="handleBillEnter(event, 'bill_svc_note')"
+                  class="w-full border rounded px-2 py-1.5 text-xs font-bold" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Service Note</label>
-                <input type="text" value="${d.serviceNote}" oninput="ui.draftBill.serviceNote=this.value; render();" placeholder="Fixing..." class="w-full border rounded px-2 py-1.5 text-xs" />
+                <input id="bill_svc_note" type="text" value="${d.serviceNote}"
+                  oninput="ui.draftBill.serviceNote=this.value;"
+                  onkeydown="handleBillEnter(event, 'bill_advance_input')"
+                  placeholder="Fixing..." class="w-full border rounded px-2 py-1.5 text-xs" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Cash Register</label>
@@ -1851,8 +1935,9 @@
               </div>
               <div class="bg-blue-50 p-2 rounded-lg border border-blue-200">
                 <label class="text-[10px] font-bold block text-blue-900">PAID / ADVANCE</label>
-                <input type="number" ${d.pending ? 'disabled' : ''} value="${d.advance || ''}" placeholder="0"
+                <input id="bill_advance_input" type="number" ${d.pending ? 'disabled' : ''} value="${d.advance || ''}" placeholder="0"
                   oninput="ui.draftBill.advance=Number(this.value||0); recalcBillLive();"
+                  onkeydown="handleBillEnter(event, 'btn_save_print_bill')"
                   class="w-full border rounded px-2 py-0.5 text-sm font-black bg-white" />
               </div>
               <div class="bg-red-50 p-2 rounded-lg border border-red-200">
@@ -1863,7 +1948,7 @@
 
             <div class="flex flex-wrap gap-2">
               <button onclick="saveNewBill(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs">Save Bill</button>
-              <button onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print 80mm</button>
+              <button id="btn_save_print_bill" onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 focus:ring-4 focus:ring-red-400 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print 80mm</button>
               <button onclick="downloadZeroStoragePDF('ebill_pdf_box', '${nextBillNo}_Roshan_Advertising.pdf')" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-3 py-2 rounded-xl text-xs">📄 Download E-Bill PDF</button>
               ${d.custPhone ? `<button onclick="openWhatsApp('${d.custPhone}', '🧾 *ROSHAN ADVERTISING E-BILL (${nextBillNo})*\\nCustomer: ${d.customer}\\nTotal: Rs. ${total}\\nPaid: Rs. ${adv}\\nBalance: Rs. ${bal}\\nThank You!')" class="bg-green-700 text-white font-bold px-3 py-2 rounded-xl text-xs">📲 WhatsApp Bill</button>` : ''}
             </div>
@@ -2275,14 +2360,30 @@
             <input type="text" value="${dq.custPhone}" oninput="ui.draftQuote.custPhone=this.value; render();" placeholder="WhatsApp Number" class="border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
           </div>
           ${dq.items.map((it, idx) => `
-            <div class="bg-gray-50 p-2 rounded-xl border grid grid-cols-12 gap-1.5">
-              <input list="rate_items_list" type="text" value="${it.baseName || it.name}" onchange="onBillItemSelect(${idx}, this.value, 'draftQuote')" placeholder="Item" class="col-span-5 border rounded px-2 py-1 text-xs font-bold bg-white" />
-              <input type="number" value="${it.w}" oninput="ui.draftQuote.items[${idx}].w=this.value; onBillSizeChange(${idx}, 'draftQuote');" placeholder="W" class="col-span-2 border rounded px-1 py-1 text-xs text-center bg-white" />
-              <input type="number" value="${it.h}" oninput="ui.draftQuote.items[${idx}].h=this.value; onBillSizeChange(${idx}, 'draftQuote');" placeholder="H" class="col-span-2 border rounded px-1 py-1 text-xs text-center bg-white" />
-              <input type="number" value="${it.price}" oninput="ui.draftQuote.items[${idx}].price=Number(this.value); render();" placeholder="Price" class="col-span-3 border rounded px-1 py-1 text-xs font-black text-right bg-white" />
+            <div class="bg-gray-50 p-2 rounded-xl border grid grid-cols-12 gap-1.5 items-end">
+              <div class="col-span-12 sm:col-span-4">
+                <label class="text-[9px] font-bold text-gray-500 block">Item</label>
+                <input list="rate_items_list" type="text" value="${it.baseName || it.name}" onchange="onBillItemSelect(${idx}, this.value, 'draftQuote')" placeholder="Item" class="w-full border rounded px-2 py-1 text-xs font-bold bg-white" />
+              </div>
+              <div class="col-span-3 sm:col-span-2">
+                <label class="text-[9px] font-bold text-gray-500 block text-center">W</label>
+                <input type="number" value="${it.w}" oninput="ui.draftQuote.items[${idx}].w=this.value; onBillSizeOrRateChange(${idx}, 'draftQuote', 'size');" placeholder="W" class="w-full border rounded px-1 py-1 text-xs text-center bg-white" />
+              </div>
+              <div class="col-span-3 sm:col-span-2">
+                <label class="text-[9px] font-bold text-gray-500 block text-center">H</label>
+                <input type="number" value="${it.h}" oninput="ui.draftQuote.items[${idx}].h=this.value; onBillSizeOrRateChange(${idx}, 'draftQuote', 'size');" placeholder="H" class="w-full border rounded px-1 py-1 text-xs text-center bg-white" />
+              </div>
+              <div class="col-span-3 sm:col-span-2">
+                <label class="text-[9px] font-bold text-amber-800 block text-center">Rate</label>
+                <input id="draftQuote_rate_${idx}" type="number" value="${it.rate || ''}" oninput="ui.draftQuote.items[${idx}].rate=this.value; onBillSizeOrRateChange(${idx}, 'draftQuote', 'rate');" placeholder="Rate" class="w-full border border-amber-300 rounded px-1 py-1 text-xs font-black text-center bg-amber-50" />
+              </div>
+              <div class="col-span-3 sm:col-span-2">
+                <label class="text-[9px] font-bold text-gray-500 block text-right">Price</label>
+                <input id="draftQuote_price_${idx}" type="number" value="${it.price}" oninput="ui.draftQuote.items[${idx}].price=Number(this.value); render();" placeholder="Price" class="w-full border rounded px-1 py-1 text-xs font-black text-right bg-white" />
+              </div>
             </div>
           `).join('')}
-          <button onclick="ui.draftQuote.items.push({baseName:'',w:'',h:'',name:'',qty:1,price:0}); render();" class="bg-black text-white px-3 py-1 rounded text-xs font-bold">+ Add Row</button>
+          <button onclick="ui.draftQuote.items.push({baseName:'',w:'',h:'',rate:'',manualRate:false,name:'',qty:1,price:0}); render();" class="bg-black text-white px-3 py-1 rounded text-xs font-bold">+ Add Row</button>
           <div class="flex gap-2 pt-2">
             <button onclick="downloadZeroStoragePDF('quote_pdf_box', 'Quotation_Roshan_Advertising.pdf')" class="bg-[#E31E24] text-white font-black px-4 py-2 rounded-xl text-xs">📄 Download Quotation PDF</button>
             ${dq.custPhone ? `<button onclick="openWhatsApp('${dq.custPhone}', '📄 *QUOTATION — ROSHAN ADVERTISING*\\nClient: ${dq.customer}\\nTotal Estimate: Rs. ${total}\\nContact: 027 224 8828')" class="bg-emerald-600 text-white font-bold px-3 py-2 rounded-xl text-xs">📲 WhatsApp Quote</button>` : ''}
