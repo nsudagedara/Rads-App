@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ROSHAN ADVERTISING SERVICES (PVT) LTD. — Smart Sharing Network</title>
-  <!-- Official Diamond R Brand Favicon & Mobile App Icon -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='14' y='14' width='72' height='72' rx='8' fill='%239E9E9E'/%3E%3Cg transform='rotate(45 50 50)'%3E%3Crect x='16' y='16' width='68' height='68' rx='6' fill='%23111111' stroke='%23E31E24' stroke-width='4'/%3E%3Cpath d='M32 68 V32 H54 C62 32 66 37 66 44 C66 50 61 54 55 55 L67 68 H55 L45 56 H41 V68 Z M41 48 H52 C55 48 57 46 57 44 C57 41 55 39 52 39 H41 Z' fill='%23E31E24'/%3E%3C/g%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111111'/%3E%3Crect x='16' y='16' width='68' height='68' rx='8' fill='%239E9E9E'/%3E%3Cg transform='rotate(45 50 50)'%3E%3Crect x='18' y='18' width='64' height='64' rx='6' fill='%23111111' stroke='%23E31E24' stroke-width='4'/%3E%3Cpath d='M32 68 V32 H54 C62 32 66 37 66 44 C66 50 61 54 55 55 L67 68 H55 L45 56 H41 V68 Z M41 48 H52 C55 48 57 46 57 44 C57 41 55 39 52 39 H41 Z' fill='%23E31E24'/%3E%3C/g%3E%3C/svg%3E" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -55,7 +54,6 @@
   const db = getFirestore(app);
   const stateDocRef = doc(db, "rads_agency", "main_state_v4_final");
 
-  // ================= OFFICIAL LOGO & WORDMARK SVG =================
   function getBrandLogoSVG(size = 54) {
     return `
       <svg width="${size}" height="${size}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="shrink-0">
@@ -79,7 +77,6 @@
     `;
   }
 
-  // ================= 4 DISTINCT WEB AUDIO SOUND EFFECTS =================
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   function playSoundEffect(type) {
     try {
@@ -135,7 +132,6 @@
     }
   }
 
-  // ================= RATE CARD =================
   const RATE_CARD_ITEMS = [
     { id: 1, cat: 'Flex', name: 'Flex (3 Pass)', u10m: 200, u10p: 140, isSqft: true },
     { id: 2, cat: 'Flex', name: 'Flex (4 Pass)', u10m: 220, u10p: 200, isSqft: true },
@@ -158,7 +154,6 @@
     { id: 19, cat: 'Print', name: 'A4 Print', u10m: 100, u10p: 100, isSqft: false }
   ];
 
-  // ================= STAFF =================
   const INITIAL_STAFF = [
     { id: 'PC01', name: 'Roshan Manchanayaka', role: 'Boss / Owner', pass: 'Rads5555534', isFamily: true, regDate: '', bday: '', tel: '+94 77 651 4284', email: 'roshanads50@gmail.com', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 0, commission: 0, teaEarned: 0, teaTaken: 0, advance: 0, leaves: 0, presentToday: true },
     { id: 'PC02', name: 'Nimesh', role: 'Designer', pass: 'nmalith', isFamily: false, regDate: '2024-03-10', bday: '1999-08-12', tel: '+94 77 012 3090', email: '', photo: '', addr: 'Medirigiriya', sector: 'Design', basicSalary: 45000, commission: 1500, teaEarned: 2100, teaTaken: 1900, advance: 0, leaves: 2, presentToday: true },
@@ -222,7 +217,6 @@
     "🎯 විශිෂ්ටත්වය යනු පුරුද්දකි. අදත් හොඳම දේ ලබා දෙමු!"
   ];
 
-  // Local UI State
   let ui = {
     splashDone: false,
     user: JSON.parse(sessionStorage.getItem('rads_logged_user') || 'null'),
@@ -262,7 +256,6 @@
     fpRecords: []
   };
 
-  // Shared Cloud State
   let cloudData = {
     staff: INITIAL_STAFF,
     bills: INITIAL_BILLS,
@@ -304,13 +297,11 @@
   }
   ui.draftBill.date = getColomboDate();
 
-  // Splash Screen Timer (2.4 seconds)
   setTimeout(() => {
     ui.splashDone = true;
     render();
   }, 2400);
 
-  // Real-time Firebase Firestore Sync + Auto Sound/Popup Trigger
   onSnapshot(stateDocRef, async (snap) => {
     if (snap.exists()) {
       const incoming = snap.data();
@@ -359,7 +350,6 @@
     }
   }
 
-  // Permission Helpers
   function isBossOrFamily(u) { return u && u.isFamily; }
   function isManagerOrCashier(u) { return u && (u.isFamily || u.role === 'Cashier' || u.role === 'Account' || u.role === 'Management'); }
   function isDesignerOnly(u) { return u && !u.isFamily && u.role === 'Designer'; }
@@ -540,7 +530,6 @@
     return alerts;
   }
 
-  // Expose Globals
   window.ui = ui;
   window.cloudData = cloudData;
   window.render = render;
@@ -664,6 +653,24 @@
     render();
   };
 
+  // LIVE BILL CALCULATION WITHOUT LOSING CURSOR FOCUS
+  window.recalcBillLive = () => {
+    const d = ui.draftBill;
+    const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
+    const total = itemsTotal + Number(d.serviceCharge || 0);
+    const adv = d.pending ? 0 : Number(d.advance || 0);
+    const bal = Math.max(0, total - adv);
+
+    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    setTxt('bill_total_disp', 'Rs. ' + total);
+    setTxt('bill_bal_disp', 'Rs. ' + bal);
+    setTxt('prev_total', 'Rs. ' + total);
+    setTxt('prev_adv', 'Rs. ' + adv);
+    setTxt('prev_bal', 'Rs. ' + bal);
+    setTxt('pdf_total_adv', `Total: Rs. ${total} | Paid (${d.payMethod}): Rs. ${adv}`);
+    setTxt('pdf_bal', `Balance Due: Rs. ${bal}`);
+  };
+
   window.onBillItemSelect = (idx, val, target = 'draftBill') => {
     const item = ui[target].items[idx];
     item.baseName = val;
@@ -696,13 +703,26 @@
     } else if (w > 0 && h > 0) {
       item.name = `${item.baseName} ${w}x${h}`;
     }
-    render();
+    const priceInput = document.getElementById(`${target}_price_${idx}`);
+    if (priceInput) priceInput.value = item.price;
+    if (target === 'draftBill') {
+      const prevItems = document.getElementById('prev_items_list');
+      if (prevItems) {
+        prevItems.innerHTML = ui.draftBill.items.map(it => `<div class="flex justify-between text-xs py-0.5"><span>${it.name || 'Item'} x${it.qty}</span><span>${Number(it.qty) * Number(it.price)}</span></div>`).join('');
+      }
+      recalcBillLive();
+    } else {
+      render();
+    }
   };
 
   window.checkCustomerDebt = (custName) => {
     ui.draftBill.customer = custName;
     const el = document.getElementById('prev_cust');
     if (el) el.innerText = custName || '-';
+    const pdfCust = document.getElementById('pdf_cust');
+    if (pdfCust) pdfCust.innerText = custName || 'Valued Customer';
+
     const known = (cloudData.clientsDir || []).find(c => c.name.toLowerCase() === custName.trim().toLowerCase());
     if (known && !ui.draftBill.custPhone) ui.draftBill.custPhone = known.phone;
 
@@ -967,7 +987,6 @@
     render();
   };
 
-  // ================= LEAVE SYSTEM =================
   window.submitLeaveRequest = async () => {
     const date = document.getElementById('lv_date').value;
     const leaveType = document.getElementById('lv_type').value;
@@ -1022,7 +1041,6 @@
     render();
   };
 
-  // ================= TEAM CHAT =================
   window.sendTeamMessage = async () => {
     const input = document.getElementById('team_msg_input');
     const text = input.value.trim();
@@ -1169,7 +1187,6 @@
     link.click();
   };
 
-  // ================= EDITABLE RATE CARD FUNCTIONS =================
   window.addNewRateItem = async () => {
     const cat = document.getElementById('rc_cat').value.trim() || 'General';
     const name = document.getElementById('rc_name').value.trim();
@@ -1207,7 +1224,6 @@
     render();
   };
 
-  // ================= STARTUP SPLASH SCREEN =================
   function renderSplash() {
     return `
       <div class="min-h-screen bg-[#111111] flex flex-col items-center justify-center p-6 text-center select-none">
@@ -1227,7 +1243,6 @@
     `;
   }
 
-  // ================= BOSS TV LIVE MONITOR MODE =================
   function renderTVMonitor() {
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
@@ -1308,7 +1323,6 @@
     `;
   }
 
-  // ================= LOGIN INTERFACE =================
   function renderLogin() {
     const q = ui.searchQuery.toLowerCase();
     const filtered = cloudData.staff.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.role.toLowerCase().includes(q));
@@ -1391,7 +1405,6 @@
     `;
   }
 
-  // ================= SMART SHORT HIGHLIGHTED MENU =================
   function renderTopBarAndAlerts() {
     const u = ui.user;
     const designerMode = isDesignerOnly(u);
@@ -1498,7 +1511,6 @@
     `;
   }
 
-  // ================= DASHBOARD =================
   function renderDashboard() {
     const u = ui.user;
     const designerMode = isDesignerOnly(u);
@@ -1655,10 +1667,10 @@
     `;
   }
 
-  // ================= NEW BILL + ZERO-STORAGE PDF E-BILL =================
+  // ================= NEW BILL (FIXED LIVE BALANCE & NO CURSOR JUMP) =================
   function renderNewBill() {
     const d = ui.draftBill;
-    const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty) * Number(it.price)), 0);
+    const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
     const total = itemsTotal + Number(d.serviceCharge || 0);
     const adv = d.pending ? 0 : Number(d.advance || 0);
     const bal = Math.max(0, total - adv);
@@ -1688,7 +1700,7 @@
               </div>
               <div>
                 <label class="text-[11px] font-bold">Payment Mode</label>
-                <select onchange="ui.draftBill.payMethod=this.value; render();" class="w-full border rounded-lg px-2 py-1.5 text-xs font-black bg-amber-50">
+                <select onchange="ui.draftBill.payMethod=this.value; recalcBillLive();" class="w-full border rounded-lg px-2 py-1.5 text-xs font-black bg-amber-50">
                   <option ${d.payMethod==='Cash'?'selected':''}>Cash</option>
                   <option ${d.payMethod==='Bank Transfer'?'selected':''}>Bank Transfer</option>
                 </select>
@@ -1718,10 +1730,10 @@
                     oninput="ui.draftBill.items[${idx}].h=this.value; onBillSizeChange(${idx}, 'draftBill');"
                     class="col-span-3 sm:col-span-2 border rounded px-1.5 py-1.5 text-xs font-bold text-center bg-white" />
                   <input type="number" value="${it.qty}" placeholder="Qty"
-                    oninput="ui.draftBill.items[${idx}].qty=Number(this.value); render();"
+                    oninput="ui.draftBill.items[${idx}].qty=Number(this.value||0); recalcBillLive();"
                     class="col-span-2 sm:col-span-1 border rounded px-1 py-1.5 text-xs font-bold text-center bg-white" />
-                  <input type="number" value="${it.price}" placeholder="Price"
-                    oninput="ui.draftBill.items[${idx}].price=Number(this.value); render();"
+                  <input id="draftBill_price_${idx}" type="number" value="${it.price}" placeholder="Price"
+                    oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); recalcBillLive();"
                     class="col-span-3 sm:col-span-2 border rounded px-1.5 py-1.5 text-xs font-black text-right bg-white" />
                   <button onclick="ui.draftBill.items.splice(${idx},1); render();" class="col-span-1 text-red-600 font-black text-center">✕</button>
                 </div>
@@ -1731,7 +1743,7 @@
             <div class="grid grid-cols-3 gap-2 pt-2 border-t">
               <div>
                 <label class="text-[11px] font-bold">Service Charge</label>
-                <input type="number" value="${d.serviceCharge}" oninput="ui.draftBill.serviceCharge=Number(this.value); render();" class="w-full border rounded px-2 py-1.5 text-xs font-bold" />
+                <input type="number" value="${d.serviceCharge || ''}" placeholder="0" oninput="ui.draftBill.serviceCharge=Number(this.value||0); recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Service Note</label>
@@ -1739,7 +1751,7 @@
               </div>
               <div>
                 <label class="text-[11px] font-bold">Cash Register</label>
-                <select onchange="ui.draftBill.floor=this.value; render();" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
+                <select onchange="ui.draftBill.floor=this.value;" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
                   <option ${d.floor==='Ground'?'selected':''}>Ground</option><option ${d.floor==='Upper'?'selected':''}>Upper</option><option ${d.floor==='Counter3'?'selected':''}>Counter3</option>
                 </select>
               </div>
@@ -1751,15 +1763,26 @@
             </div>
 
             <div class="grid grid-cols-3 gap-2">
-              <div class="bg-gray-100 p-2 rounded-lg"><span class="text-[10px] font-bold block">TOTAL</span><span class="text-base font-black">Rs. ${total}</span></div>
-              <div class="bg-blue-50 p-2 rounded-lg"><label class="text-[10px] font-bold block">PAID (${d.payMethod})</label><input type="number" ${d.pending ? 'disabled' : ''} value="${adv}" oninput="ui.draftBill.advance=Number(this.value); render();" class="w-full border rounded px-2 py-0.5 text-sm font-black bg-white" /></div>
-              <div class="bg-red-50 p-2 rounded-lg"><span class="text-[10px] font-bold block">BALANCE</span><span class="text-base font-black text-red-700">Rs. ${bal}</span></div>
+              <div class="bg-gray-100 p-2 rounded-lg">
+                <span class="text-[10px] font-bold block">TOTAL</span>
+                <span id="bill_total_disp" class="text-base font-black">Rs. ${total}</span>
+              </div>
+              <div class="bg-blue-50 p-2 rounded-lg border border-blue-200">
+                <label class="text-[10px] font-bold block text-blue-900">PAID / ADVANCE</label>
+                <input type="number" ${d.pending ? 'disabled' : ''} value="${d.advance || ''}" placeholder="0"
+                  oninput="ui.draftBill.advance=Number(this.value||0); recalcBillLive();"
+                  class="w-full border rounded px-2 py-0.5 text-sm font-black bg-white" />
+              </div>
+              <div class="bg-red-50 p-2 rounded-lg border border-red-200">
+                <span class="text-[10px] font-bold block text-red-900">BALANCE (ඉතුරු)</span>
+                <span id="bill_bal_disp" class="text-base font-black text-red-700">Rs. ${bal}</span>
+              </div>
             </div>
 
             <div class="flex flex-wrap gap-2">
               <button onclick="saveNewBill(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs">Save Bill</button>
               <button onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print 80mm</button>
-              <button onclick="downloadZeroStoragePDF('ebill_pdf_box', '${nextBillNo}_Roshan_Advertising.pdf')" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-3 py-2 rounded-xl text-xs">📄 Download E-Bill PDF (Zero Storage)</button>
+              <button onclick="downloadZeroStoragePDF('ebill_pdf_box', '${nextBillNo}_Roshan_Advertising.pdf')" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-3 py-2 rounded-xl text-xs">📄 Download E-Bill PDF</button>
               ${d.custPhone ? `<button onclick="openWhatsApp('${d.custPhone}', '🧾 *ROSHAN ADVERTISING E-BILL (${nextBillNo})*\\nCustomer: ${d.customer}\\nTotal: Rs. ${total}\\nPaid: Rs. ${adv}\\nBalance: Rs. ${bal}\\nThank You!')" class="bg-green-700 text-white font-bold px-3 py-2 rounded-xl text-xs">📲 WhatsApp Bill</button>` : ''}
             </div>
           </div>
@@ -1776,13 +1799,15 @@
                 <div class="text-xs">Date: ${getColomboDate()} | Cashier: ${ui.user.name}</div>
                 <div class="text-xs">Customer: <span id="prev_cust">${d.customer || '-'}</span></div>
                 <div class="border-t border-dashed border-black my-1"></div>
-                ${d.items.map(it => `<div class="flex justify-between text-xs py-0.5"><span>${it.name || 'Item'} x${it.qty}</span><span>${Number(it.qty) * Number(it.price)}</span></div>`).join('')}
+                <div id="prev_items_list">
+                  ${d.items.map(it => `<div class="flex justify-between text-xs py-0.5"><span>${it.name || 'Item'} x${it.qty}</span><span>${Number(it.qty) * Number(it.price)}</span></div>`).join('')}
+                </div>
                 ${Number(d.serviceCharge) > 0 ? `<div class="flex justify-between text-xs py-0.5"><span>Service (${d.serviceNote || 'Charge'})</span><span>${d.serviceCharge}</span></div>` : ''}
                 <div class="border-t border-dashed border-black my-1"></div>
-                <div class="flex justify-between text-sm"><span>TOTAL:</span><span>Rs. ${total}</span></div>
-                <div class="flex justify-between text-xs"><span>PAID:</span><span>Rs. ${adv}</span></div>
+                <div class="flex justify-between text-sm"><span>TOTAL:</span><span id="prev_total">Rs. ${total}</span></div>
+                <div class="flex justify-between text-xs"><span>PAID:</span><span id="prev_adv">Rs. ${adv}</span></div>
                 <div class="border-t border-black my-1"></div>
-                <div class="flex justify-between text-lg py-0.5"><span>BALANCE:</span><span>Rs. ${bal}</span></div>
+                <div class="flex justify-between text-lg py-0.5"><span>BALANCE:</span><span id="prev_bal">Rs. ${bal}</span></div>
                 <div class="border-t border-black my-1"></div>
                 <div class="text-center text-[11px] mt-1">Thank You! Come Again.</div>
                 <div class="text-center text-xs mt-0.5">Next Branch Hingurakgoda.</div>
@@ -1799,7 +1824,7 @@
                 </div>
               </div>
               <div class="flex justify-between text-[11px] mb-2">
-                <span><b>Customer:</b> ${d.customer || 'Valued Customer'}</span>
+                <span><b>Customer:</b> <span id="pdf_cust">${d.customer || 'Valued Customer'}</span></span>
                 <span><b>Date:</b> ${getColomboDate()}</span>
               </div>
               <table class="w-full text-[11px] border-collapse mb-2">
@@ -1807,8 +1832,8 @@
                 ${d.items.map(it => `<tr class="border-b"><td class="p-1">${it.name || '-'}</td><td class="p-1 text-center">${it.qty}</td><td class="p-1 text-right">Rs. ${it.qty * it.price}</td></tr>`).join('')}
               </table>
               <div class="text-right font-black text-xs space-y-0.5">
-                <div>Total: Rs. ${total} | Paid (${d.payMethod}): Rs. ${adv}</div>
-                <div class="text-[#E31E24] text-sm">Balance Due: Rs. ${bal}</div>
+                <div id="pdf_total_adv">Total: Rs. ${total} | Paid (${d.payMethod}): Rs. ${adv}</div>
+                <div id="pdf_bal" class="text-[#E31E24] text-sm">Balance Due: Rs. ${bal}</div>
               </div>
               <div class="text-center text-[9px] text-gray-500 mt-3 pt-1 border-t">Medirigiriya • Next Branch Hingurakgoda.</div>
             </div>
@@ -1846,10 +1871,8 @@
     `;
   }
 
-  // ================= PRINTING ROOM QUEUE =================
   function renderPrintQueue() {
     const dp = ui.draftPrint;
-
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
         <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
@@ -1939,7 +1962,6 @@
     `;
   }
 
-  // ================= CASHIER HOME =================
   function renderCashierHome() {
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
@@ -2045,7 +2067,6 @@
     `;
   }
 
-  // ================= JOBS =================
   function renderJobs() {
     const designerMode = isDesignerOnly(ui.user);
     const stepKeys = ['Mashimant', 'Quotation', 'JobStart', 'DesignerSelect', 'ArtworkOk', 'Print', 'Constructor', 'WorkStart', 'JobComplete', 'Invoice', 'Payment'];
@@ -2121,7 +2142,6 @@
     `;
   }
 
-  // ================= QUOTATION GENERATOR =================
   function renderQuotation() {
     const dq = ui.draftQuote;
     const total = dq.items.reduce((s, it) => s + (Number(it.qty) * Number(it.price)), 0);
@@ -2169,7 +2189,6 @@
     `;
   }
 
-  // ================= EDITABLE RATE CARD VIEW =================
   function renderRateCard() {
     const canEdit = isManagerOrCashier(ui.user);
     return `
@@ -2252,7 +2271,6 @@
     `;
   }
 
-  // ================= TEA MONEY & LEAVES =================
   function renderTeaMoney() {
     const u = ui.user;
     const isMgr = isManagerOrCashier(u);
@@ -2314,7 +2332,6 @@
     `;
   }
 
-  // ================= STOCK =================
   function renderStock() {
     return `
       <div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4">
@@ -2347,7 +2364,6 @@
     `;
   }
 
-  // ================= BOOKINGS =================
   function renderBookings() {
     return `
       <div class="max-w-5xl mx-auto p-4 space-y-4">
@@ -2377,7 +2393,6 @@
     `;
   }
 
-  // ================= PAYROLL & FINGERPRINT =================
   function renderPayrollAndFingerprint() {
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
@@ -2426,7 +2441,6 @@
     `;
   }
 
-  // ================= EVENING REPORT =================
   function renderDailyReport() {
     const today = getColomboDate();
     const bals = calcCashierBalances();
@@ -2531,7 +2545,6 @@
     `;
   }
 
-  // ================= LEAVE ROSTER & 3-DAY BOSS APPROVAL PAGE =================
   function renderLeaveRoster() {
     const isBoss = isBossOrFamily(ui.user);
     const defaultAdvanceDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -2598,7 +2611,6 @@
     `;
   }
 
-  // ================= TEAM CHAT & WHATSAPP =================
   function renderMessagesAndChat() {
     const u = ui.user;
     const msgs = cloudData.teamMessages || [];
