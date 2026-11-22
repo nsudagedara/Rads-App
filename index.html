@@ -14,21 +14,34 @@
     .brand-header { background: linear-gradient(135deg, #111111 0%, #1f1f1f 65%, #E31E24 100%); }
     .brand-card { background: linear-gradient(145deg, #161616 0%, #242424 100%); border-left: 4px solid #E31E24; }
     .thermal-preview {
-      width: 72mm;
+      width: 76mm;
       max-width: 100%;
       background: #ffffff;
       color: #000000;
       font-family: 'Courier New', Courier, monospace;
-      padding: 8px;
+      padding: 10px 8px;
       margin: 0 auto;
-      line-height: 1.3;
+      line-height: 1.45;
+      box-sizing: border-box;
     }
-    .thermal-preview * { color: #000000 !important; font-weight: 700; }
-    @page { size: auto; margin: 4mm; }
+    .thermal-preview * { color: #000000 !important; font-weight: 800; }
+    @page { size: auto; margin: 2mm; }
     @media print {
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
-      #print-area { position: absolute; left: 0; top: 0; width: 100%; max-width: 210mm; padding: 8px; margin: 0; box-shadow: none !important; }
+      #print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 4mm 3mm;
+        margin: 0;
+        box-shadow: none !important;
+      }
+      #print-area.thermal-preview {
+        width: 76mm !important;
+        max-width: 76mm !important;
+      }
     }
   </style>
 </head>
@@ -222,6 +235,7 @@
     user: JSON.parse(sessionStorage.getItem('rads_logged_user') || 'null'),
     page: 'dashboard',
     menuOpen: false,
+    sidebarPinned: true,
     tvMode: false,
     selectedCashierFloor: 'Ground',
     searchQuery: '',
@@ -665,13 +679,13 @@
     const bal = Math.max(0, total - adv);
 
     const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
-    setTxt('bill_total_disp', 'Rs. ' + total);
-    setTxt('bill_bal_disp', 'Rs. ' + bal);
-    setTxt('prev_total', 'Rs. ' + total);
-    setTxt('prev_adv', 'Rs. ' + adv);
-    setTxt('prev_bal', 'Rs. ' + bal);
-    setTxt('pdf_total_adv', `Total: Rs. ${total} | Paid (${d.payMethod}): Rs. ${adv}`);
-    setTxt('pdf_bal', `Balance Due: Rs. ${bal}`);
+    setTxt('bill_total_disp', 'Rs. ' + total.toLocaleString());
+    setTxt('bill_bal_disp', 'Rs. ' + bal.toLocaleString());
+    setTxt('prev_total', 'Rs. ' + total.toLocaleString());
+    setTxt('prev_adv', 'Rs. ' + adv.toLocaleString());
+    setTxt('prev_bal', 'Rs. ' + bal.toLocaleString());
+    setTxt('pdf_total_adv', `Total: Rs. ${total.toLocaleString()} | Paid (${d.payMethod}): Rs. ${adv.toLocaleString()}`);
+    setTxt('pdf_bal', `Balance Due: Rs. ${bal.toLocaleString()}`);
   };
 
   window.onBillItemSelect = (idx, val, target = 'draftBill') => {
@@ -711,7 +725,15 @@
     if (target === 'draftBill') {
       const prevItems = document.getElementById('prev_items_list');
       if (prevItems) {
-        prevItems.innerHTML = ui.draftBill.items.map(it => `<div class="flex justify-between text-xs py-0.5"><span>${it.name || 'Item'} x${it.qty}</span><span>${Number(it.qty) * Number(it.price)}</span></div>`).join('');
+        prevItems.innerHTML = ui.draftBill.items.map(it => `
+          <div class="py-1.5 border-b border-dotted border-black">
+            <div class="text-sm font-black leading-snug">${it.name || 'Item'}</div>
+            <div class="flex justify-between text-sm mt-0.5">
+              <span>Qty: ${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
+              <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
+            </div>
+          </div>
+        `).join('');
       }
       recalcBillLive();
     } else {
@@ -794,12 +816,22 @@
     if (adv > 0 && d.payMethod === 'Cash') playSoundEffect('cashIn');
     await saveCloud(`Created Bill ${billId} (${d.payMethod}, Rs. ${total}, ${status})`);
 
-    ui.draftBill = {
-      customer: '', custPhone: '', date: getColomboDate(), cashier: ui.user.name, floor: ui.selectedCashierFloor, payMethod: 'Cash',
-      items: [{ baseName: '', w: '', h: '', name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0
-    };
-    render();
-    if (printAfter) setTimeout(() => window.print(), 250);
+    if (printAfter) {
+      setTimeout(() => {
+        window.print();
+        ui.draftBill = {
+          customer: '', custPhone: '', date: getColomboDate(), cashier: ui.user.name, floor: ui.selectedCashierFloor, payMethod: 'Cash',
+          items: [{ baseName: '', w: '', h: '', name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0
+        };
+        render();
+      }, 200);
+    } else {
+      ui.draftBill = {
+        customer: '', custPhone: '', date: getColomboDate(), cashier: ui.user.name, floor: ui.selectedCashierFloor, payMethod: 'Cash',
+        items: [{ baseName: '', w: '', h: '', name: '', qty: 1, price: 0 }], pending: false, serviceCharge: 0, serviceNote: '', advance: 0
+      };
+      render();
+    }
   };
 
   window.downloadZeroStoragePDF = (elementId, filename) => {
@@ -843,6 +875,13 @@
     });
 
     await saveCloud(`Collected Rs. ${paid} (${isBank ? 'Bank Transfer' : 'Cash'}) for ${bill.id}`);
+    render();
+  };
+
+  window.deleteBill = async (billId) => {
+    if (!confirm(`⚠️ ඔබට ${billId} බිල්පත සම්පූර්ණයෙන්ම Delete කිරීමට අවශ්‍යද?`)) return;
+    cloudData.bills = cloudData.bills.filter(x => x.id !== billId);
+    await saveCloud(`Deleted Bill ${billId}`);
     render();
   };
 
@@ -1409,13 +1448,13 @@
     `;
   }
 
-  function renderTopBarAndAlerts() {
+  function getNavItems() {
     const u = ui.user;
     const designerMode = isDesignerOnly(u);
     const pendingPrintsCount = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length;
     const pendingLeavesCount = (cloudData.leaveRequests || []).filter(l => l.status === 'Pending Boss Approval').length;
 
-    const allNav = [
+    return [
       { id: 'dashboard', icon: '🏠', label: 'Dashboard', allow: true },
       { id: 'newbill', icon: '🧾', label: 'New Bill', allow: !designerMode },
       { id: 'cashier', icon: '💰', label: 'Cashier', allow: !designerMode },
@@ -1433,14 +1472,43 @@
       { id: 'report', icon: '📊', label: '6PM Report', allow: isManagerOrCashier(u) },
       { id: 'profile', icon: '👤', label: 'My Profile', allow: true }
     ].filter(n => n.allow);
+  }
 
+  function renderNavButtonsList() {
+    return getNavItems().map(n => {
+      const active = ui.page === n.id;
+      return `
+        <button onclick="setPage('${n.id}')"
+          class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-150 ${
+            active
+              ? 'bg-gradient-to-r from-[#E31E24] to-red-700 text-white shadow-lg shadow-red-900/50 scale-[1.02]'
+              : 'bg-white/[0.04] hover:bg-white/[0.12] text-gray-200 border border-white/[0.05]'
+          }">
+          <span class="flex items-center gap-2.5">
+            <span class="text-sm">${n.icon}</span>
+            <span>${n.label}</span>
+          </span>
+          ${n.badge > 0
+            ? `<span class="px-2 py-0.5 text-[10px] font-black rounded-full ${active ? 'bg-white text-[#E31E24]' : 'bg-amber-400 text-black'}">${n.badge}</span>`
+            : (active ? `<span class="text-[10px] opacity-90">●</span>` : '')}
+        </button>
+      `;
+    }).join('');
+  }
+
+  function renderTopBarAndAlerts() {
+    const u = ui.user;
+    const pendingPrintsCount = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length;
     const alerts = getActiveAlerts();
 
     return `
       <div class="brand-header text-white shadow-lg sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-3 py-2 flex justify-between items-center">
+        <div class="px-4 py-2 flex justify-between items-center">
           <div class="flex items-center gap-2.5">
-            <button onclick="ui.menuOpen=!ui.menuOpen; render();" class="bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white font-black text-lg leading-none">☰</button>
+            <button onclick="ui.menuOpen=!ui.menuOpen; render();" class="lg:hidden bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white font-black text-lg leading-none">☰</button>
+            <button onclick="ui.sidebarPinned=!ui.sidebarPinned; render();" title="Pin / Unpin Left Menu" class="hidden lg:flex items-center gap-1 bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white font-black text-xs">
+              ${ui.sidebarPinned ? '📌 Pinned' : '☰ Menu'}
+            </button>
             <div onclick="setPage('dashboard')" class="flex items-center gap-2 cursor-pointer">
               ${getBrandLogoSVG(36)}
               <div>
@@ -1462,7 +1530,7 @@
       </div>
 
       ${ui.menuOpen ? `
-        <div class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex" onclick="ui.menuOpen=false; render();">
+        <div class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex lg:hidden" onclick="ui.menuOpen=false; render();">
           <div class="w-72 bg-gradient-to-b from-[#141414] to-[#0a0a0a] text-white h-full p-4 overflow-y-auto shadow-2xl border-r border-red-900/40" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center pb-3 mb-3 border-b border-gray-800">
               <div class="flex items-center gap-2">
@@ -1472,25 +1540,7 @@
               <button onclick="ui.menuOpen=false; render();" class="bg-white/10 hover:bg-[#E31E24] w-7 h-7 rounded-full text-xs font-black flex items-center justify-center transition">✕</button>
             </div>
             <div class="space-y-1.5">
-              ${allNav.map(n => {
-                const active = ui.page === n.id;
-                return `
-                  <button onclick="setPage('${n.id}')"
-                    class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-150 ${
-                      active
-                        ? 'bg-gradient-to-r from-[#E31E24] to-red-700 text-white shadow-lg shadow-red-900/50 scale-[1.02]'
-                        : 'bg-white/[0.04] hover:bg-white/[0.12] text-gray-200 border border-white/[0.05]'
-                    }">
-                    <span class="flex items-center gap-2.5">
-                      <span class="text-sm">${n.icon}</span>
-                      <span>${n.label}</span>
-                    </span>
-                    ${n.badge > 0
-                      ? `<span class="px-2 py-0.5 text-[10px] font-black rounded-full ${active ? 'bg-white text-[#E31E24]' : 'bg-amber-400 text-black'}">${n.badge}</span>`
-                      : (active ? `<span class="text-[10px] opacity-90">●</span>` : '')}
-                  </button>
-                `;
-              }).join('')}
+              ${renderNavButtonsList()}
             </div>
           </div>
         </div>
@@ -1762,10 +1812,10 @@
                     oninput="ui.draftBill.items[${idx}].h=this.value; onBillSizeChange(${idx}, 'draftBill');"
                     class="col-span-3 sm:col-span-2 border rounded px-1.5 py-1.5 text-xs font-bold text-center bg-white" />
                   <input type="number" value="${it.qty}" placeholder="Qty"
-                    oninput="ui.draftBill.items[${idx}].qty=Number(this.value||0); recalcBillLive();"
+                    oninput="ui.draftBill.items[${idx}].qty=Number(this.value||0); onBillSizeChange(${idx}, 'draftBill');"
                     class="col-span-2 sm:col-span-1 border rounded px-1 py-1.5 text-xs font-bold text-center bg-white" />
                   <input id="draftBill_price_${idx}" type="number" value="${it.price}" placeholder="Price"
-                    oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); recalcBillLive();"
+                    oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); onBillSizeChange(${idx}, 'draftBill');"
                     class="col-span-3 sm:col-span-2 border rounded px-1.5 py-1.5 text-xs font-black text-right bg-white" />
                   <button onclick="ui.draftBill.items.splice(${idx},1); render();" class="col-span-1 text-red-600 font-black text-center">✕</button>
                 </div>
@@ -1775,11 +1825,11 @@
             <div class="grid grid-cols-3 gap-2 pt-2 border-t">
               <div>
                 <label class="text-[11px] font-bold">Service Charge</label>
-                <input type="number" value="${d.serviceCharge || ''}" placeholder="0" oninput="ui.draftBill.serviceCharge=Number(this.value||0); recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold" />
+                <input type="number" value="${d.serviceCharge || ''}" placeholder="0" oninput="ui.draftBill.serviceCharge=Number(this.value||0); render();" class="w-full border rounded px-2 py-1.5 text-xs font-bold" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Service Note</label>
-                <input type="text" value="${d.serviceNote}" oninput="ui.draftBill.serviceNote=this.value;" placeholder="Fixing..." class="w-full border rounded px-2 py-1.5 text-xs" />
+                <input type="text" value="${d.serviceNote}" oninput="ui.draftBill.serviceNote=this.value; render();" placeholder="Fixing..." class="w-full border rounded px-2 py-1.5 text-xs" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Cash Register</label>
@@ -1797,7 +1847,7 @@
             <div class="grid grid-cols-3 gap-2">
               <div class="bg-gray-100 p-2 rounded-lg">
                 <span class="text-[10px] font-bold block">TOTAL</span>
-                <span id="bill_total_disp" class="text-base font-black">Rs. ${total}</span>
+                <span id="bill_total_disp" class="text-base font-black">Rs. ${total.toLocaleString()}</span>
               </div>
               <div class="bg-blue-50 p-2 rounded-lg border border-blue-200">
                 <label class="text-[10px] font-bold block text-blue-900">PAID / ADVANCE</label>
@@ -1807,7 +1857,7 @@
               </div>
               <div class="bg-red-50 p-2 rounded-lg border border-red-200">
                 <span class="text-[10px] font-bold block text-red-900">BALANCE (ඉතුරු)</span>
-                <span id="bill_bal_disp" class="text-base font-black text-red-700">Rs. ${bal}</span>
+                <span id="bill_bal_disp" class="text-base font-black text-red-700">Rs. ${bal.toLocaleString()}</span>
               </div>
             </div>
 
@@ -1821,28 +1871,64 @@
 
           <div class="lg:col-span-5 space-y-3">
             <div class="bg-gray-200 p-3 rounded-2xl">
-              <p class="text-[10px] font-bold text-gray-600 text-center mb-1.5">X Printer 80T Preview (80mm Paper)</p>
+              <p class="text-[10px] font-bold text-gray-600 text-center mb-1.5">X Printer 80T Preview (80mm Balanced & Large Font)</p>
               <div id="print-area" class="thermal-preview shadow">
-                <div class="text-center text-lg leading-tight">Roshan Advertising</div>
-                <div class="text-center text-xs">Services (PVT) LTD.</div>
-                <div class="text-center text-[11px] mt-0.5">Medirigiriya | Tel: 027 224 8828</div>
-                <div class="border-t border-black my-1"></div>
-                <div class="text-xs">Bill No: ${nextBillNo} (${d.payMethod})</div>
-                <div class="text-xs">Date: ${getColomboDate()} | Cashier: ${ui.user.name}</div>
-                <div class="text-xs">Customer: <span id="prev_cust">${d.customer || '-'}</span></div>
-                <div class="border-t border-dashed border-black my-1"></div>
-                <div id="prev_items_list">
-                  ${d.items.map(it => `<div class="flex justify-between text-xs py-0.5"><span>${it.name || 'Item'} x${it.qty}</span><span>${Number(it.qty) * Number(it.price)}</span></div>`).join('')}
+                <div class="text-center text-2xl font-black tracking-tight uppercase leading-tight">ROSHAN ADVERTISING</div>
+                <div class="text-center text-sm font-black tracking-widest mt-0.5">SERVICES (PVT) LTD.</div>
+                <div class="text-center text-xs mt-1">Medirigiriya</div>
+                <div class="text-center text-xs">Tel: 027 224 8828 / 071 555 5534</div>
+                <div class="border-t-2 border-black my-2.5"></div>
+
+                <div class="space-y-1 text-sm">
+                  <div class="flex justify-between"><span>BILL NO:</span><span class="font-black">${nextBillNo}</span></div>
+                  <div class="flex justify-between"><span>DATE:</span><span>${getColomboDate()}</span></div>
+                  <div class="flex justify-between"><span>MODE:</span><span>${d.payMethod}</span></div>
+                  <div class="flex justify-between"><span>CASHIER:</span><span>${ui.user.name}</span></div>
+                  <div class="pt-0.5">CUSTOMER: <span id="prev_cust" class="font-black">${d.customer || '-'}</span></div>
                 </div>
-                ${Number(d.serviceCharge) > 0 ? `<div class="flex justify-between text-xs py-0.5"><span>Service (${d.serviceNote || 'Charge'})</span><span>${d.serviceCharge}</span></div>` : ''}
-                <div class="border-t border-dashed border-black my-1"></div>
-                <div class="flex justify-between text-sm"><span>TOTAL:</span><span id="prev_total">Rs. ${total}</span></div>
-                <div class="flex justify-between text-xs"><span>PAID:</span><span id="prev_adv">Rs. ${adv}</span></div>
-                <div class="border-t border-black my-1"></div>
-                <div class="flex justify-between text-lg py-0.5"><span>BALANCE:</span><span id="prev_bal">Rs. ${bal}</span></div>
-                <div class="border-t border-black my-1"></div>
-                <div class="text-center text-[11px] mt-1">Thank You! Come Again.</div>
-                <div class="text-center text-xs mt-0.5">Next Branch Hingurakgoda.</div>
+
+                <div class="border-t-2 border-dashed border-black my-2.5"></div>
+
+                <div id="prev_items_list" class="space-y-1">
+                  ${d.items.map(it => `
+                    <div class="py-1.5 border-b border-dotted border-black">
+                      <div class="text-sm font-black leading-snug">${it.name || 'Item'}</div>
+                      <div class="flex justify-between text-sm mt-0.5">
+                        <span>Qty: ${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
+                        <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+
+                ${Number(d.serviceCharge) > 0 ? `
+                  <div class="py-1.5 border-b border-dotted border-black flex justify-between text-sm">
+                    <span>Service (${d.serviceNote || 'Charge'})</span>
+                    <span class="font-black">Rs.${Number(d.serviceCharge).toLocaleString()}</span>
+                  </div>
+                ` : ''}
+
+                <div class="border-t-2 border-dashed border-black my-2.5"></div>
+
+                <div class="space-y-1.5">
+                  <div class="flex justify-between text-base font-black">
+                    <span>TOTAL:</span>
+                    <span id="prev_total">Rs. ${total.toLocaleString()}</span>
+                  </div>
+                  <div class="flex justify-between text-sm font-black">
+                    <span>PAID:</span>
+                    <span id="prev_adv">Rs. ${adv.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div class="border-y-2 border-black my-2.5 py-2 flex justify-between text-xl font-black">
+                  <span>BALANCE:</span>
+                  <span id="prev_bal">Rs. ${bal.toLocaleString()}</span>
+                </div>
+
+                <div class="text-center text-sm font-black mt-3">Thank You! Come Again.</div>
+                <div class="text-center text-xs mt-1">Next Branch Hingurakgoda.</div>
+                <div class="h-4"></div>
               </div>
             </div>
 
@@ -1861,11 +1947,11 @@
               </div>
               <table class="w-full text-[11px] border-collapse mb-2">
                 <tr class="bg-gray-100 border-y"><th class="p-1 text-left">Description</th><th class="p-1 text-center">Qty</th><th class="p-1 text-right">Amount</th></tr>
-                ${d.items.map(it => `<tr class="border-b"><td class="p-1">${it.name || '-'}</td><td class="p-1 text-center">${it.qty}</td><td class="p-1 text-right">Rs. ${it.qty * it.price}</td></tr>`).join('')}
+                ${d.items.map(it => `<tr class="border-b"><td class="p-1">${it.name || '-'}</td><td class="p-1 text-center">${it.qty}</td><td class="p-1 text-right">Rs. ${(it.qty * it.price).toLocaleString()}</td></tr>`).join('')}
               </table>
               <div class="text-right font-black text-xs space-y-0.5">
-                <div id="pdf_total_adv">Total: Rs. ${total} | Paid (${d.payMethod}): Rs. ${adv}</div>
-                <div id="pdf_bal" class="text-[#E31E24] text-sm">Balance Due: Rs. ${bal}</div>
+                <div id="pdf_total_adv">Total: Rs. ${total.toLocaleString()} | Paid (${d.payMethod}): Rs. ${adv.toLocaleString()}</div>
+                <div id="pdf_bal" class="text-[#E31E24] text-sm">Balance Due: Rs. ${bal.toLocaleString()}</div>
               </div>
               <div class="text-center text-[9px] text-gray-500 mt-3 pt-1 border-t">Medirigiriya • Next Branch Hingurakgoda.</div>
             </div>
@@ -1894,7 +1980,7 @@
                     <td class="p-2"><span class="px-2 py-0.5 rounded font-bold ${b.status==='FULL PAID'?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}">${b.status}</span></td>
                     <td class="p-2 flex gap-1">
                       ${b.balance > 0 ? `<button onclick="collectPayment('${b.id}')" class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">Collect</button>` : ''}
-                      ${isBossOrFamily(ui.user) ? `<button onclick="if(confirm('Delete ${b.id}?')){cloudData.bills=cloudData.bills.filter(x=>x.id!=='${b.id}'); saveCloud('Deleted Bill ${b.id}'); render();}" class="bg-red-600 text-white px-2 py-0.5 rounded">Del</button>` : ''}
+                      ${isBossOrFamily(ui.user) ? `<button onclick="deleteBill('${b.id}')" class="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-bold">Del</button>` : ''}
                     </td>
                   </tr>
                 `;
@@ -2750,7 +2836,30 @@
         body = renderDashboard();
     }
 
-    appEl.innerHTML = renderTopBarAndAlerts() + body;
+    const pinnedSidebarHTML = ui.sidebarPinned ? `
+      <aside class="hidden lg:block w-64 shrink-0 bg-gradient-to-b from-[#141414] to-[#0a0a0a] text-white min-h-[calc(100vh-52px)] p-3.5 border-r border-gray-800 sticky top-[52px] self-start max-h-[calc(100vh-52px)] overflow-y-auto">
+        <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-gray-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-[#E31E24]"></span>
+            <span class="font-black text-[11px] tracking-wider text-gray-300">QUICK MENU</span>
+          </div>
+          <button onclick="ui.sidebarPinned=false; render();" title="Hide Menu" class="text-[10px] bg-white/10 hover:bg-[#E31E24] px-2 py-0.5 rounded font-bold">Hide</button>
+        </div>
+        <div class="space-y-1.5">
+          ${renderNavButtonsList()}
+        </div>
+      </aside>
+    ` : '';
+
+    appEl.innerHTML = `
+      ${renderTopBarAndAlerts()}
+      <div class="flex">
+        ${pinnedSidebarHTML}
+        <main class="flex-1 min-w-0 pb-10">
+          ${body}
+        </main>
+      </div>
+    `;
   }
 
   render();
