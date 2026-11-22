@@ -14,33 +14,41 @@
     .brand-header { background: linear-gradient(135deg, #111111 0%, #1f1f1f 65%, #E31E24 100%); }
     .brand-card { background: linear-gradient(145deg, #161616 0%, #242424 100%); border-left: 4px solid #E31E24; }
     .thermal-preview {
-      width: 76mm;
-      max-width: 100%;
+      width: 72mm;
+      max-width: 72mm;
       background: #ffffff;
       color: #000000;
       font-family: 'Courier New', Courier, monospace;
-      padding: 10px 8px;
+      padding: 6px 4px;
       margin: 0 auto;
-      line-height: 1.45;
+      line-height: 1.4;
       box-sizing: border-box;
+      overflow: hidden;
     }
-    .thermal-preview * { color: #000000 !important; font-weight: 800; }
-    @page { size: auto; margin: 2mm; }
+    .thermal-preview * { color: #000000 !important; font-weight: 800; box-sizing: border-box; }
+    @page { size: auto; margin: 0mm; }
     @media print {
+      html, body {
+        width: 72mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
       #print-area {
         position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        padding: 4mm 3mm;
-        margin: 0;
+        left: 0 !important;
+        top: 0 !important;
+        margin: 0 !important;
         box-shadow: none !important;
+        border-radius: 0 !important;
       }
       #print-area.thermal-preview {
-        width: 76mm !important;
-        max-width: 76mm !important;
+        width: 72mm !important;
+        min-width: 72mm !important;
+        max-width: 72mm !important;
+        padding: 1.5mm 1mm !important;
       }
     }
   </style>
@@ -704,7 +712,7 @@
     if (prevItems) {
       prevItems.innerHTML = ui.draftBill.items.map(it => `
         <div class="py-1.5 border-b border-dotted border-black">
-          <div class="text-sm font-black leading-snug">${it.name || 'Item'}</div>
+          <div class="text-sm font-black leading-snug break-words">${it.name || 'Item'}</div>
           <div class="flex justify-between text-sm mt-0.5">
             <span>Qty: ${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
             <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
@@ -1948,7 +1956,7 @@
 
             <div class="flex flex-wrap gap-2">
               <button onclick="saveNewBill(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs">Save Bill</button>
-              <button id="btn_save_print_bill" onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 focus:ring-4 focus:ring-red-400 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print 80mm</button>
+              <button id="btn_save_print_bill" onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 focus:ring-4 focus:ring-red-400 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print (72mm)</button>
               <button onclick="downloadZeroStoragePDF('ebill_pdf_box', '${nextBillNo}_Roshan_Advertising.pdf')" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-3 py-2 rounded-xl text-xs">📄 Download E-Bill PDF</button>
               ${d.custPhone ? `<button onclick="openWhatsApp('${d.custPhone}', '🧾 *ROSHAN ADVERTISING E-BILL (${nextBillNo})*\\nCustomer: ${d.customer}\\nTotal: Rs. ${total}\\nPaid: Rs. ${adv}\\nBalance: Rs. ${bal}\\nThank You!')" class="bg-green-700 text-white font-bold px-3 py-2 rounded-xl text-xs">📲 WhatsApp Bill</button>` : ''}
             </div>
@@ -1956,30 +1964,30 @@
 
           <div class="lg:col-span-5 space-y-3">
             <div class="bg-gray-200 p-3 rounded-2xl">
-              <p class="text-[10px] font-bold text-gray-600 text-center mb-1.5">X Printer 80T Preview (80mm Balanced & Large Font)</p>
+              <p class="text-[10px] font-bold text-gray-600 text-center mb-1.5">72mm Exact Print Width Preview (Scale 100%)</p>
               <div id="print-area" class="thermal-preview shadow">
-                <div class="text-center text-2xl font-black tracking-tight uppercase leading-tight">ROSHAN ADVERTISING</div>
-                <div class="text-center text-sm font-black tracking-widest mt-0.5">SERVICES (PVT) LTD.</div>
-                <div class="text-center text-xs mt-1">Medirigiriya</div>
-                <div class="text-center text-xs">Tel: 027 224 8828 / 071 555 5534</div>
-                <div class="border-t-2 border-black my-2.5"></div>
+                <div class="text-center text-lg font-black tracking-tight uppercase leading-tight">ROSHAN ADVERTISING</div>
+                <div class="text-center text-xs font-black tracking-wider mt-0.5">SERVICES (PVT) LTD.</div>
+                <div class="text-center text-xs mt-0.5">Medirigiriya</div>
+                <div class="text-center text-xs">027 224 8828 / 071 555 5534</div>
+                <div class="border-t-2 border-black my-2"></div>
 
-                <div class="space-y-1 text-sm">
-                  <div class="flex justify-between"><span>BILL NO:</span><span class="font-black">${nextBillNo}</span></div>
+                <div class="space-y-0.5 text-xs">
+                  <div class="flex justify-between"><span>BILL:</span><span class="font-black">${nextBillNo}</span></div>
                   <div class="flex justify-between"><span>DATE:</span><span>${getColomboDate()}</span></div>
                   <div class="flex justify-between"><span>MODE:</span><span>${d.payMethod}</span></div>
                   <div class="flex justify-between"><span>CASHIER:</span><span>${ui.user.name}</span></div>
-                  <div class="pt-0.5">CUSTOMER: <span id="prev_cust" class="font-black">${d.customer || '-'}</span></div>
+                  <div class="pt-0.5 break-words">CUST: <span id="prev_cust" class="font-black">${d.customer || '-'}</span></div>
                 </div>
 
-                <div class="border-t-2 border-dashed border-black my-2.5"></div>
+                <div class="border-t-2 border-dashed border-black my-2"></div>
 
                 <div id="prev_items_list" class="space-y-1">
                   ${d.items.map(it => `
-                    <div class="py-1.5 border-b border-dotted border-black">
-                      <div class="text-sm font-black leading-snug">${it.name || 'Item'}</div>
-                      <div class="flex justify-between text-sm mt-0.5">
-                        <span>Qty: ${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
+                    <div class="py-1 border-b border-dotted border-black">
+                      <div class="text-sm font-black leading-snug break-words">${it.name || 'Item'}</div>
+                      <div class="flex justify-between text-xs mt-0.5">
+                        <span>${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
                         <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
                       </div>
                     </div>
@@ -1987,33 +1995,33 @@
                 </div>
 
                 ${Number(d.serviceCharge) > 0 ? `
-                  <div class="py-1.5 border-b border-dotted border-black flex justify-between text-sm">
-                    <span>Service (${d.serviceNote || 'Charge'})</span>
+                  <div class="py-1 border-b border-dotted border-black flex justify-between text-xs">
+                    <span class="break-words">Svc (${d.serviceNote || 'Charge'})</span>
                     <span class="font-black">Rs.${Number(d.serviceCharge).toLocaleString()}</span>
                   </div>
                 ` : ''}
 
-                <div class="border-t-2 border-dashed border-black my-2.5"></div>
+                <div class="border-t-2 border-dashed border-black my-2"></div>
 
-                <div class="space-y-1.5">
-                  <div class="flex justify-between text-base font-black">
+                <div class="space-y-1">
+                  <div class="flex justify-between text-sm font-black">
                     <span>TOTAL:</span>
                     <span id="prev_total">Rs. ${total.toLocaleString()}</span>
                   </div>
-                  <div class="flex justify-between text-sm font-black">
+                  <div class="flex justify-between text-xs font-black">
                     <span>PAID:</span>
                     <span id="prev_adv">Rs. ${adv.toLocaleString()}</span>
                   </div>
                 </div>
 
-                <div class="border-y-2 border-black my-2.5 py-2 flex justify-between text-xl font-black">
-                  <span>BALANCE:</span>
+                <div class="border-y-2 border-black my-2 py-1.5 flex justify-between text-base font-black">
+                  <span>BAL:</span>
                   <span id="prev_bal">Rs. ${bal.toLocaleString()}</span>
                 </div>
 
-                <div class="text-center text-sm font-black mt-3">Thank You! Come Again.</div>
-                <div class="text-center text-xs mt-1">Next Branch Hingurakgoda.</div>
-                <div class="h-4"></div>
+                <div class="text-center text-xs font-black mt-2">Thank You! Come Again.</div>
+                <div class="text-center text-[11px] mt-0.5">Next Branch Hingurakgoda.</div>
+                <div class="h-3"></div>
               </div>
             </div>
 
@@ -2679,7 +2687,7 @@
     return `
       <div class="max-w-4xl mx-auto p-4 space-y-4">
         <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-2">
-          <h2 class="font-black text-sm">🖨️ DETAILED EVENING REPORT (A4 / 80mm) & BACKUP</h2>
+          <h2 class="font-black text-sm">🖨️ DETAILED EVENING REPORT (A4 / 72mm) & BACKUP</h2>
           <div class="flex flex-wrap gap-1.5">
             <button onclick="openWhatsApp('${roshanPhone}', \`${detailedWaMsg}\`)" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">📲 Send to Roshan</button>
             <button onclick="openWhatsApp('${swarnaPhone}', \`${detailedWaMsg}\`)" class="bg-teal-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">📲 Send to Swarna</button>
