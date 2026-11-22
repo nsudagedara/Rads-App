@@ -238,7 +238,7 @@
     coins: { c5000: 0, c2000: 0, c1000: 0, c500: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0 },
     draftPrint: {
       jobId: '0001',
-      filePath: '\\PC10\D\Jobs\',
+      filePath: '\\\\PC10\\D\\Jobs\\',
       items: [{ fileName: '', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }]
     },
     draftBill: {
@@ -271,7 +271,7 @@
     extraWorks: INITIAL_EXTRA,
     rates: RATE_CARD_ITEMS,
     printQueue: [
-      { id: 'PQ-01', jobId: '0001', designer: 'Nimantha', filePath: '\\PC10\D\Jobs\Kelani_Matara', items: [{ fileName: 'Kelani_Banner.tif', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }], status: 'Pending Print', time: '10:30' }
+      { id: 'PQ-01', jobId: '0001', designer: 'Nimantha', filePath: '\\\\PC10\\D\\Jobs\\Kelani_Matara', items: [{ fileName: 'Kelani_Banner.tif', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }], status: 'Pending Print', time: '10:30' }
     ],
     bookings: [
       { id: 1, type: 'Vehicle Sticker Bay', title: 'CAB-4582 (Full Body Wrap)', date: '2026-11-22', time: '09:30 AM', status: 'Confirmed' },
@@ -844,7 +844,7 @@
     await saveCloud(`Designer ${ui.user.name} sent Print Order ${nextPq} (Job #${dp.jobId})`);
     ui.draftPrint = {
       jobId: '',
-      filePath: '\\' + ui.user.id + '\D\Jobs\',
+      filePath: '\\\\' + ui.user.id + '\\D\\Jobs\\',
       items: [{ fileName: '', material: 'Flex', size: '', pass: '6 Pass', copies: 1 }]
     };
     alert(`✅ Print Order (${nextPq}) Printing Room එකට යවන ලදී!`);
@@ -1864,7 +1864,7 @@
             </div>
             <div class="sm:col-span-2">
               <label class="text-[11px] font-bold">Saved File Path (Copy-Paste Folder Location)</label>
-              <input type="text" value="${dp.filePath}" oninput="ui.draftPrint.filePath=this.value;" placeholder="\\PC10\D\Jobs\Customer_Folder" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold bg-amber-50" />
+              <input type="text" value="${dp.filePath}" oninput="ui.draftPrint.filePath=this.value;" placeholder="\\\\PC10\\D\\Jobs\\Customer_Folder" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold bg-amber-50" />
             </div>
           </div>
 
