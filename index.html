@@ -390,13 +390,15 @@
     const res = { Ground: 0, Upper: 0, Counter3: 0, Total: 0, todayCashIncome: 0, todayBankIncome: 0, todayExpenses: 0, todayTeaDeducted: 0 };
 
     cloudData.bills.filter(b => b.date === today && b.status !== 'Pending').forEach(b => {
-      const amt = Number(b.advance || 0);
-      if (b.payMethod === 'Bank Transfer') {
-        res.todayBankIncome += amt;
+      const cashAmt = Number(b.advance || 0);
+      const bankAmt = Number(b.bankPaid || 0);
+      if (b.payMethod === 'Bank Transfer' && bankAmt === 0) {
+        res.todayBankIncome += cashAmt;
       } else {
-        res.todayCashIncome += amt;
-        if (res[b.floor] !== undefined) res[b.floor] += amt;
-        else res.Ground += amt;
+        res.todayCashIncome += cashAmt;
+        res.todayBankIncome += bankAmt;
+        if (res[b.floor] !== undefined) res[b.floor] += cashAmt;
+        else res.Ground += cashAmt;
       }
     });
 
@@ -427,7 +429,9 @@
     let mIncome = 0, mExpenses = 0, mTea = 0, totalCustomerDues = 0;
 
     cloudData.bills.forEach(b => {
-      if (b.date.startsWith(monthPrefix) && b.status !== 'Pending') mIncome += Number(b.advance || 0);
+      if (b.date.startsWith(monthPrefix) && b.status !== 'Pending') {
+        mIncome += Number(b.advance || 0) + Number(b.bankPaid || 0);
+      }
       if (b.balance > 0) totalCustomerDues += Number(b.balance || 0);
     });
     (cloudData.bankTransfers || []).filter(bt => bt.date.startsWith(monthPrefix)).forEach(bt => mIncome += Number(bt.amount || 0));
@@ -653,7 +657,6 @@
     render();
   };
 
-  // LIVE BILL CALCULATION WITHOUT LOSING CURSOR FOCUS
   window.recalcBillLive = () => {
     const d = ui.draftBill;
     const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
@@ -753,6 +756,8 @@
     const nextNum = String(cloudData.bills.length + 1).padStart(3, '0');
     const billId = 'RADS-' + nextNum;
 
+    const isBankDirect = d.payMethod === 'Bank Transfer';
+
     const newBill = {
       id: billId,
       date: getColomboDate(),
@@ -765,7 +770,8 @@
       serviceCharge: Number(d.serviceCharge || 0),
       serviceNote: d.serviceNote,
       total,
-      advance: adv,
+      advance: isBankDirect ? 0 : adv,
+      bankPaid: isBankDirect ? adv : 0,
       balance: bal,
       status
     };
@@ -818,20 +824,17 @@
 
     const isBank = confirm(`මෙම Rs. ${paid} ලැබුණේ BANK TRANSFER එකක් විදියටද?\n\n[OK] = Bank Transfer (Cashier එකට එකතු නොවේ)\n[Cancel] = Cash (Cashier Register එකට එකතු වේ)`);
 
-    bill.advance += paid;
-    bill.balance = Math.max(0, bill.total - bill.advance);
-    bill.status = bill.balance === 0 ? 'FULL PAID' : 'Balance Due';
-
     if (isBank) {
-      cloudData.bankTransfers = cloudData.bankTransfers || [];
-      cloudData.bankTransfers.unshift({ date: getColomboDate(), ref: bill.id, customer: bill.customer, amount: paid, by: ui.user.name });
-      bill.advance -= paid;
       bill.bankPaid = (bill.bankPaid || 0) + paid;
-      bill.balance = Math.max(0, bill.total - (bill.advance + bill.bankPaid));
-      bill.status = bill.balance === 0 ? 'FULL PAID' : 'Balance Due';
+      bill.payMethod = 'Bank Transfer';
     } else {
+      bill.advance = (bill.advance || 0) + paid;
       playSoundEffect('cashIn');
     }
+
+    const totalPaid = (bill.advance || 0) + (bill.bankPaid || 0);
+    bill.balance = Math.max(0, bill.total - totalPaid);
+    bill.status = bill.balance === 0 ? 'FULL PAID' : 'Balance Due';
 
     cloudData.jobs.forEach(j => {
       if (j.billNo && j.billNo.toUpperCase() === bill.id.toUpperCase() && bill.balance === 0) {
@@ -1176,9 +1179,10 @@
 
   window.exportMonthlyCSV = () => {
     const monthPrefix = getCurrentMonthPrefix();
-    let csv = 'Bill ID,Date,Customer,PayMethod,Cashier,Floor,Total,Advance,Balance,Status\n';
+    let csv = 'Bill ID,Date,Customer,PayMethod,Cashier,Floor,Total,Paid,Balance,Status\n';
     cloudData.bills.filter(b => b.date.startsWith(monthPrefix)).forEach(b => {
-      csv += `${b.id},${b.date},"${b.customer}",${b.payMethod || 'Cash'},${b.cashier},${b.floor},${b.total},${b.advance},${b.balance},${b.status}\n`;
+      const paidAmt = (b.advance || 0) + (b.bankPaid || 0);
+      csv += `${b.id},${b.date},"${b.customer}",${b.payMethod || 'Cash'},${b.cashier},${b.floor},${b.total},${paidAmt},${b.balance},${b.status}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -1517,6 +1521,8 @@
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
     const myTeaRem = u.teaEarned - u.teaTaken;
+    const todayTotalIncome = bals.todayCashIncome + bals.todayBankIncome;
+    const todayPettyCash = bals.todayExpenses + bals.todayTeaDeducted;
 
     if (designerMode) {
       const myActiveJobs = cloudData.jobs.filter(j => !j.steps.JobComplete && j.designer.toLowerCase().includes(u.name.toLowerCase()));
@@ -1616,33 +1622,60 @@
                 <span class="text-lg font-black text-cyan-400">Rs. ${bals.todayBankIncome.toLocaleString()}</span>
               </div>
               <div class="bg-white/5 p-3 rounded-xl">
-                <span class="text-[10px] text-gray-400 block">Today Expenses</span>
-                <span class="text-lg font-black text-rose-400">Rs. ${(bals.todayExpenses + bals.todayTeaDeducted).toLocaleString()}</span>
+                <span class="text-[10px] text-gray-400 block">Today Petty Cash</span>
+                <span class="text-lg font-black text-rose-400">Rs. ${todayPettyCash.toLocaleString()}</span>
               </div>
               <div class="bg-white/5 p-3 rounded-xl">
                 <span class="text-[10px] text-gray-400 block">Customer ණය</span>
                 <span class="text-lg font-black text-amber-400">Rs. ${mStats.totalCustomerDues.toLocaleString()}</span>
               </div>
               <div class="bg-white/5 p-3 rounded-xl">
-                <span class="text-[10px] text-gray-400 block">Month Net (1–30)</span>
-                <span class="text-lg font-black text-white">Rs. ${mStats.mNet.toLocaleString()}</span>
+                <span class="text-[10px] text-gray-400 block">Monthly Income (1–30)</span>
+                <span class="text-lg font-black text-white">Rs. ${mStats.mIncome.toLocaleString()}</span>
               </div>
             </div>
           </div>
         ` : ''}
 
-        <div class="bg-white rounded-2xl p-5 shadow border flex flex-wrap justify-between items-center gap-4">
-          <div>
-            <p class="text-xs font-bold text-gray-500">TODAY CASH REGISTERS (Auto-Resets to Rs.0 at 12:00 Midnight)</p>
-            <h2 class="text-3xl font-black text-gray-900 mt-1">Rs. ${bals.Total.toLocaleString()}</h2>
-            <p class="text-xs text-gray-600 mt-1">
-              Ground: <b>Rs.${bals.Ground}</b> | Upper: <b>Rs.${bals.Upper}</b> | Counter 3: <b>Rs.${bals.Counter3}</b> | <span class="text-cyan-700 font-bold">Bank Transfers: Rs.${bals.todayBankIncome}</span>
-            </p>
+        <div class="bg-white rounded-2xl p-5 shadow border space-y-4">
+          <div class="flex flex-wrap justify-between items-center gap-3 border-b pb-3">
+            <div>
+              <p class="text-[11px] font-black text-gray-500 uppercase">TODAY CASH & ACCOUNTS SUMMARY (Auto-Resets at 12:00 Midnight)</p>
+              <p class="text-xs text-gray-600 mt-0.5">
+                Ground: <b>Rs.${bals.Ground.toLocaleString()}</b> | Upper: <b>Rs.${bals.Upper.toLocaleString()}</b> | Counter 3: <b>Rs.${bals.Counter3.toLocaleString()}</b>
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button onclick="setPage('newbill')" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-4 py-2 rounded-xl text-xs shadow">+ New Bill / PDF</button>
+              <button onclick="setPage('cashier')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs shadow">🧮 Cash Counter</button>
+              <button onclick="setPage('report')" class="bg-black hover:bg-gray-800 text-white font-black px-4 py-2 rounded-xl text-xs shadow">🖨️ 6PM A4 Report</button>
+            </div>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button onclick="setPage('newbill')" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow">+ New Bill / PDF</button>
-            <button onclick="setPage('cashier')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow">🧮 Cash Counter</button>
-            <button onclick="setPage('report')" class="bg-black hover:bg-gray-800 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow">🖨️ 6PM A4 Report</button>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-emerald-800 uppercase block">💰 Daily Balance (Cash)</span>
+              <span class="text-2xl font-black text-emerald-950 mt-0.5 block">Rs. ${bals.Total.toLocaleString()}</span>
+              <span class="text-[10px] text-emerald-700 font-bold">Cash in Drawer Today</span>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-blue-800 uppercase block">📈 Today Income</span>
+              <span class="text-2xl font-black text-blue-950 mt-0.5 block">Rs. ${todayTotalIncome.toLocaleString()}</span>
+              <span class="text-[10px] text-blue-700 font-bold">Cash: Rs.${bals.todayCashIncome.toLocaleString()} | Bank: Rs.${bals.todayBankIncome.toLocaleString()}</span>
+            </div>
+
+            <div class="bg-rose-50 border border-rose-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-rose-800 uppercase block">💸 Petty Cash (වියදම්)</span>
+              <span class="text-2xl font-black text-rose-950 mt-0.5 block">Rs. ${todayPettyCash.toLocaleString()}</span>
+              <span class="text-[10px] text-rose-700 font-bold">Expenses + Tea Allocated</span>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-amber-800 uppercase block">📅 Monthly Income</span>
+              <span class="text-2xl font-black text-amber-950 mt-0.5 block">Rs. ${mStats.mIncome.toLocaleString()}</span>
+              <span class="text-[10px] text-amber-800 font-bold">Net Profit: Rs.${mStats.mNet.toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
@@ -1667,7 +1700,6 @@
     `;
   }
 
-  // ================= NEW BILL (FIXED LIVE BALANCE & NO CURSOR JUMP) =================
   function renderNewBill() {
     const d = ui.draftBill;
     const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
@@ -1850,20 +1882,23 @@
               <tr><th class="p-2">Bill ID</th><th class="p-2">Date</th><th class="p-2">Customer</th><th class="p-2">Mode</th><th class="p-2">Total</th><th class="p-2">Paid</th><th class="p-2">Balance</th><th class="p-2">Status</th><th class="p-2">Action</th></tr>
             </thead>
             <tbody>
-              ${cloudData.bills.map(b => `
-                <tr class="border-b">
-                  <td class="p-2 font-black">${b.id}</td><td class="p-2">${b.date}</td><td class="p-2 font-bold">${b.customer}</td>
-                  <td class="p-2"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${b.payMethod==='Bank Transfer'?'bg-cyan-100 text-cyan-900':'bg-gray-100'}">${b.payMethod || 'Cash'}</span></td>
-                  <td class="p-2 font-bold">Rs.${b.total}</td>
-                  <td class="p-2 text-green-700 font-bold">Rs.${(b.advance || 0) + (b.bankPaid || 0)}</td>
-                  <td class="p-2 text-red-700 font-black">Rs.${b.balance}</td>
-                  <td class="p-2"><span class="px-2 py-0.5 rounded font-bold ${b.status==='FULL PAID'?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}">${b.status}</span></td>
-                  <td class="p-2 flex gap-1">
-                    ${b.balance > 0 ? `<button onclick="collectPayment('${b.id}')" class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">Collect</button>` : ''}
-                    ${isBossOrFamily(ui.user) ? `<button onclick="if(confirm('Delete ${b.id}?')){cloudData.bills=cloudData.bills.filter(x=>x.id!=='${b.id}'); saveCloud('Deleted Bill ${b.id}'); render();}" class="bg-red-600 text-white px-2 py-0.5 rounded">Del</button>` : ''}
-                  </td>
-                </tr>
-              `).join('')}
+              ${cloudData.bills.map(b => {
+                const totalPaidAmt = (b.advance || 0) + (b.bankPaid || 0);
+                return `
+                  <tr class="border-b">
+                    <td class="p-2 font-black">${b.id}</td><td class="p-2">${b.date}</td><td class="p-2 font-bold">${b.customer}</td>
+                    <td class="p-2"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${b.payMethod==='Bank Transfer'?'bg-cyan-100 text-cyan-900':'bg-gray-100'}">${b.payMethod || 'Cash'}</span></td>
+                    <td class="p-2 font-bold">Rs.${b.total}</td>
+                    <td class="p-2 text-green-700 font-bold">Rs.${totalPaidAmt}</td>
+                    <td class="p-2 text-red-700 font-black">Rs.${b.balance}</td>
+                    <td class="p-2"><span class="px-2 py-0.5 rounded font-bold ${b.status==='FULL PAID'?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}">${b.status}</span></td>
+                    <td class="p-2 flex gap-1">
+                      ${b.balance > 0 ? `<button onclick="collectPayment('${b.id}')" class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">Collect</button>` : ''}
+                      ${isBossOrFamily(ui.user) ? `<button onclick="if(confirm('Delete ${b.id}?')){cloudData.bills=cloudData.bills.filter(x=>x.id!=='${b.id}'); saveCloud('Deleted Bill ${b.id}'); render();}" class="bg-red-600 text-white px-2 py-0.5 rounded">Del</button>` : ''}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
         </div>
