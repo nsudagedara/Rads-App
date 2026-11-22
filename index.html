@@ -79,7 +79,7 @@
     `;
   }
 
-  // ================= 4 DISTINCT WEB AUDIO SOUND EFFECTS (ZERO-STORAGE) =================
+  // ================= 4 DISTINCT WEB AUDIO SOUND EFFECTS =================
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   function playSoundEffect(type) {
     try {
@@ -99,20 +99,16 @@
       };
 
       if (type === 'cashIn') {
-        // Happy Cha-Ching double chime
         playTone(987.77, 0, 0.14, 'triangle', 0.3);
         playTone(1318.51, 0.12, 0.35, 'triangle', 0.35);
       } else if (type === 'cashOut') {
-        // Distinct lower descending tone for expense/deduction
         playTone(523.25, 0, 0.15, 'sine', 0.25);
         playTone(392.00, 0.14, 0.28, 'sine', 0.25);
       } else if (type === 'printOrder') {
-        // Printing Room Urgent Triple Beep
         playTone(880, 0, 0.12, 'square', 0.2);
         playTone(880, 0.16, 0.12, 'square', 0.2);
         playTone(1174.66, 0.32, 0.28, 'square', 0.25);
       } else if (type === 'specialAlert') {
-        // Special Alert / Printed Complete Chime
         playTone(659.25, 0, 0.15, 'sine', 0.28);
         playTone(880.00, 0.14, 0.15, 'sine', 0.28);
         playTone(1318.51, 0.28, 0.35, 'sine', 0.3);
@@ -122,7 +118,6 @@
 
   function triggerDesktopNotification(title, body, soundType = 'specialAlert') {
     playSoundEffect(soundType);
-    // Blinking Tab Title
     let blinks = 0;
     const origTitle = "ROSHAN ADVERTISING SERVICES (PVT) LTD.";
     const blinkTimer = setInterval(() => {
@@ -163,7 +158,7 @@
     { id: 19, cat: 'Print', name: 'A4 Print', u10m: 100, u10p: 100, isSqft: false }
   ];
 
-  // ================= STAFF WITH EXACT WHATSAPP NUMBERS =================
+  // ================= STAFF =================
   const INITIAL_STAFF = [
     { id: 'PC01', name: 'Roshan Manchanayaka', role: 'Boss / Owner', pass: 'Rads5555534', isFamily: true, regDate: '', bday: '', tel: '+94 77 651 4284', email: 'roshanads50@gmail.com', photo: '', addr: 'Medirigiriya', sector: 'Management', basicSalary: 0, commission: 0, teaEarned: 0, teaTaken: 0, advance: 0, leaves: 0, presentToday: true },
     { id: 'PC02', name: 'Nimesh', role: 'Designer', pass: 'nmalith', isFamily: false, regDate: '2024-03-10', bday: '1999-08-12', tel: '+94 77 012 3090', email: '', photo: '', addr: 'Medirigiriya', sector: 'Design', basicSalary: 45000, commission: 1500, teaEarned: 2100, teaTaken: 1900, advance: 0, leaves: 2, presentToday: true },
@@ -291,6 +286,7 @@
     pendingTeaDeduction: 0,
     teaTransfers: [],
     leaveRequests: [],
+    teamMessages: [],
     shiftTransfers: [],
     auditLogs: [],
     remindersDone: {},
@@ -318,7 +314,6 @@
   onSnapshot(stateDocRef, async (snap) => {
     if (snap.exists()) {
       const incoming = snap.data();
-      // Detect new Print Queue order or Printed status change for Desktop Alert!
       if (ui.lastPrintCount !== -1 && incoming.printQueue) {
         const pendingNow = incoming.printQueue.filter(p => p.status === 'Pending Print').length;
         const printedNow = incoming.printQueue.filter(p => p.status === 'Printed').length;
@@ -400,7 +395,6 @@
     return `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-gray-600 text-white">1+ Yr</span>`;
   }
 
-  // Cash Register Calculation (EXCLUDES Bank Transfers so Cashier Drawer never mismatches!)
   function calcCashierBalances() {
     const today = getColomboDate();
     const res = { Ground: 0, Upper: 0, Counter3: 0, Total: 0, todayCashIncome: 0, todayBankIncome: 0, todayExpenses: 0, todayTeaDeducted: 0 };
@@ -458,17 +452,15 @@
     };
   }
 
-  // All Office Smart Alerts (Garbage Tue/Thu <9AM, Lunch 11:55AM, Weekly Oil & Cleaning, Birthday, 6-Month Backup, 1-Roll Stock)
   function getActiveAlerts() {
     const now = getColomboNow();
     const todayStr = getColomboDate();
-    const mdStr = todayStr.slice(5); // MM-DD
+    const mdStr = todayStr.slice(5);
     const day = now.getDay();
     const hour = now.getHours();
     const min = now.getMinutes();
     const alerts = [];
 
-    // 1. Staff Birthdays Auto-Banner (Non-Family)
     const bdayStaff = cloudData.staff.filter(s => !s.isFamily && s.bday && s.bday.slice(5) === mdStr);
     bdayStaff.forEach(bs => {
       alerts.push({
@@ -481,7 +473,6 @@
       });
     });
 
-    // 2. Tuesday (2) & Thursday (4) Garbage Truck before 9:00 AM
     if ((day === 2 || day === 4) && hour < 9 && !cloudData.remindersDone[`garbage_${todayStr}`]) {
       alerts.push({
         key: `garbage_${todayStr}`,
@@ -492,7 +483,6 @@
       });
     }
 
-    // 3. Daily Lunch Reminder (11:55 AM - 12:30 PM)
     if (((hour === 11 && min >= 55) || (hour === 12 && min <= 30)) && !cloudData.remindersDone[`lunch_${todayStr}`]) {
       alerts.push({
         key: `lunch_${todayStr}`,
@@ -503,7 +493,6 @@
       });
     }
 
-    // 4. Weekly Oil Check (Monday)
     if (day === 1 && !cloudData.remindersDone[`oil_${todayStr}`]) {
       alerts.push({
         key: `oil_${todayStr}`,
@@ -514,7 +503,6 @@
       });
     }
 
-    // 5. Weekly Washroom & Glass Cleaning (Saturday)
     if (day === 6 && !cloudData.remindersDone[`clean_${todayStr}`]) {
       alerts.push({
         key: `clean_${todayStr}`,
@@ -525,7 +513,6 @@
       });
     }
 
-    // 6. 6-Month / Dec 31 Backup Reminder (3 Days Prior: June 28-30 or Dec 29-31)
     if ((mdStr >= '06-28' && mdStr <= '06-30') || (mdStr >= '12-29' && mdStr <= '12-31')) {
       alerts.push({
         key: `backup_${todayStr}`,
@@ -537,7 +524,6 @@
       });
     }
 
-    // 7. 1-Roll Left Low Stock Alert
     const lowStock = cloudData.stock.filter(s => (s.bought - s.used) <= 1);
     if (lowStock.length > 0) {
       const names = lowStock.map(s => `${s.name} (ඉතුරු: ${s.bought - s.used})`).join(', ');
@@ -626,7 +612,6 @@
     render();
   };
 
-  // Profile Photo Upload (Ultra-Compressed ~10KB)
   window.handlePhotoUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -679,7 +664,6 @@
     render();
   };
 
-  // Smart Rate Card Calculation
   window.onBillItemSelect = (idx, val, target = 'draftBill') => {
     const item = ui[target].items[idx];
     item.baseName = val;
@@ -768,7 +752,6 @@
 
     cloudData.bills.unshift(newBill);
 
-    // Auto-Save Repeat Customer to Directory
     if (d.customer && d.customer !== '-' && d.customer.length > 2) {
       cloudData.clientsDir = cloudData.clientsDir || [];
       const existing = cloudData.clientsDir.find(c => c.name.toLowerCase() === d.customer.toLowerCase());
@@ -793,7 +776,6 @@
     if (printAfter) setTimeout(() => window.print(), 250);
   };
 
-  // Zero-Storage PDF E-Bill Generator
   window.downloadZeroStoragePDF = (elementId, filename) => {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -823,7 +805,6 @@
     if (isBank) {
       cloudData.bankTransfers = cloudData.bankTransfers || [];
       cloudData.bankTransfers.unshift({ date: getColomboDate(), ref: bill.id, customer: bill.customer, amount: paid, by: ui.user.name });
-      // Do not inflate cash drawer: record bank portion separately
       bill.advance -= paid;
       bill.bankPaid = (bill.bankPaid || 0) + paid;
       bill.balance = Math.max(0, bill.total - (bill.advance + bill.bankPaid));
@@ -842,7 +823,6 @@
     render();
   };
 
-  // Designer -> Printing Room Ticket Submission
   window.submitPrintOrder = async () => {
     const dp = ui.draftPrint;
     const validItems = dp.items.filter(i => i.fileName.trim() !== '');
@@ -878,7 +858,6 @@
     pq.printedBy = ui.user.name;
     pq.printedAt = getColomboNow().toTimeString().slice(0, 5);
 
-    // Sync linked Job Print step!
     if (pq.jobId && pq.jobId !== '-') {
       const job = cloudData.jobs.find(j => j.id === pq.jobId);
       if (job) job.steps.Print = true;
@@ -933,7 +912,6 @@
     render();
   };
 
-  // Tea Money & Leave System
   window.markAttendanceAndTea = async (staffId, isPresent) => {
     const p = cloudData.staff.find(s => s.id === staffId);
     if (!p) return;
@@ -989,17 +967,81 @@
     render();
   };
 
+  // ================= LEAVE SYSTEM (POYA + 3 SUNDAYS ROSTER + 3-DAY ADVANCE BOSS APPROVAL) =================
   window.submitLeaveRequest = async () => {
     const date = document.getElementById('lv_date').value;
+    const leaveType = document.getElementById('lv_type').value;
     const reason = document.getElementById('lv_reason').value.trim();
     if (!date || !reason) return alert('දිනය සහ හේතුව ඇතුළත් කරන්න.');
 
+    const todayObj = new Date(getColomboDate() + 'T00:00:00');
+    const reqObj = new Date(date + 'T00:00:00');
+    const diffDays = Math.round((reqObj - todayObj) / (1000 * 60 * 60 * 24));
+
+    if (leaveType === 'Personal Leave' && diffDays < 3) {
+      return alert(`⚠️ පෞද්ගලික නිවාඩු (Personal Leave) ලබා ගැනීමට අවම වශයෙන් දින 3කට පෙර (3 Days Advance) ඉල්ලුම් කළ යුතුය!\n\n(හදිසි අසනීපයක්/අවශ්‍යතාවයක් නම් 'Emergency Leave' තෝරන්න.)`);
+    }
+
     cloudData.leaveRequests = cloudData.leaveRequests || [];
-    cloudData.leaveRequests.unshift({ id: Date.now(), staffId: ui.user.id, name: ui.user.name, date, reason });
-    const me = cloudData.staff.find(s => s.id === ui.user.id);
-    if (me && !me.isFamily) me.leaves = (me.leaves || 0) + 1;
-    await saveCloud(`${ui.user.name} applied Leave for ${date}: ${reason}`);
-    alert('✅ නිවාඩුව සටහන් විය!');
+    cloudData.leaveRequests.unshift({
+      id: Date.now(),
+      staffId: ui.user.id,
+      name: ui.user.name,
+      date,
+      leaveType,
+      reason,
+      status: 'Pending Boss Approval',
+      approvedBy: ''
+    });
+
+    playSoundEffect('specialAlert');
+    await saveCloud(`${ui.user.name} requested ${leaveType} for ${date} (Pending Boss Approval)`);
+    alert('✅ නිවාඩු ඉල්ලීම Boss ගේ අනුමැතිය සඳහා යවන ලදී! (Pending Boss Approval)');
+    render();
+  };
+
+  window.approveOrRejectLeave = async (reqId, newStatus) => {
+    if (!isBossOrFamily(ui.user)) return alert('❌ නිවාඩු අනුමත කළ හැක්කේ Boss (Roshan / Samila / Swarna) හට පමණි!');
+    const req = (cloudData.leaveRequests || []).find(r => r.id === reqId);
+    if (!req || req.status !== 'Pending Boss Approval') return;
+
+    req.status = newStatus;
+    req.approvedBy = ui.user.name;
+
+    if (newStatus === 'Approved') {
+      const staffMember = cloudData.staff.find(s => s.id === req.staffId);
+      if (staffMember && !staffMember.isFamily) {
+        staffMember.leaves = (staffMember.leaves || 0) + 1;
+      }
+      playSoundEffect('cashIn');
+    } else {
+      playSoundEffect('cashOut');
+    }
+
+    await saveCloud(`${ui.user.name} marked Leave Request of ${req.name} (${req.date}) as ${newStatus}`);
+    render();
+  };
+
+  // ================= TEAM CHAT WITH SENDER NAME ON TOP =================
+  window.sendTeamMessage = async () => {
+    const input = document.getElementById('team_msg_input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    cloudData.teamMessages = cloudData.teamMessages || [];
+    cloudData.teamMessages.unshift({
+      id: Date.now(),
+      senderId: ui.user.id,
+      senderName: ui.user.name,
+      senderRole: ui.user.role,
+      text,
+      time: `${getColomboDate()} ${getColomboNow().toTimeString().slice(0, 5)}`
+    });
+    if (cloudData.teamMessages.length > 60) cloudData.teamMessages.pop();
+
+    input.value = '';
+    playSoundEffect('specialAlert');
+    await saveCloud(`${ui.user.name} sent team message`);
     render();
   };
 
@@ -1056,7 +1098,6 @@
     render();
   };
 
-  // Zero-Storage Fingerprint CSV Reader (Reads in browser RAM, saves 0 bytes to Firebase!)
   window.parseFingerprintFile = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -1086,7 +1127,6 @@
     reader.readAsText(file);
   };
 
-  // 6-Month & Dec 31 Backup + Archive Cycle
   window.executeSixMonthBackupAndReset = async () => {
     const mStats = calcMonthlyStats();
     const backupData = JSON.stringify(cloudData, null, 2);
@@ -1313,29 +1353,30 @@
     `;
   }
 
-  // ================= TOP BAR & HAMBURGER MENU (☰) =================
+  // ================= SMART SHORT HIGHLIGHTED MENU (NO NUMBERS) =================
   function renderTopBarAndAlerts() {
     const u = ui.user;
     const designerMode = isDesignerOnly(u);
     const pendingPrintsCount = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length;
+    const pendingLeavesCount = (cloudData.leaveRequests || []).filter(l => l.status === 'Pending Boss Approval').length;
 
     const allNav = [
-      { id: 'dashboard', label: '01 Home / My Dashboard', allow: true },
-      { id: 'newbill', label: '02 New Bill & PDF E-Bill', allow: !designerMode },
-      { id: 'cashier', label: '03 Cashier Home & Coins', allow: !designerMode },
-      { id: 'jobs', label: '04 Jobs & Bank Transfers', allow: true },
-      { id: 'printqueue', label: `05 Printing Room Queue (${pendingPrintsCount})`, allow: true },
-      { id: 'quotation', label: '06 1-Click Quotation PDF', allow: !designerMode },
-      { id: 'tea', label: '07 Tea Money & Leaves', allow: true },
-      { id: 'stock', label: '08 Stock (1-Roll Alert)', allow: true },
-      { id: 'bookings', label: '09 Sticker Bay / Washing / Fixing', allow: true },
-      { id: 'rates', label: '10 Rate Card (10 SQFT-/+)', allow: !designerMode },
-      { id: 'pending', label: '11 Pending / ණය Bills', allow: !designerMode },
-      { id: 'payroll', label: '12 Payroll, OT & Fingerprint', allow: isManagerOrCashier(u) },
-      { id: 'leave', label: '13 Apply Leave (නිවාඩු)', allow: true },
-      { id: 'messages', label: '14 WhatsApp & Repeat Clients', allow: true },
-      { id: 'report', label: '15 6PM A4/80mm Report & Backup', allow: isManagerOrCashier(u) },
-      { id: 'profile', label: '16 My Profile (Photo/WhatsApp)', allow: true }
+      { id: 'dashboard', icon: '🏠', label: 'Dashboard', allow: true },
+      { id: 'newbill', icon: '🧾', label: 'New Bill', allow: !designerMode },
+      { id: 'cashier', icon: '💰', label: 'Cashier', allow: !designerMode },
+      { id: 'jobs', icon: '🛠️', label: 'Jobs & Bank', allow: true },
+      { id: 'printqueue', icon: '🖨️', label: 'Print Queue', badge: pendingPrintsCount, allow: true },
+      { id: 'quotation', icon: '📄', label: 'Quotation', allow: !designerMode },
+      { id: 'tea', icon: '☕', label: 'Tea & Leaves', allow: true },
+      { id: 'stock', icon: '📦', label: 'Stock Alert', allow: true },
+      { id: 'bookings', icon: '🚗', label: 'Sticker & Fixing', allow: true },
+      { id: 'rates', icon: '📐', label: 'Rate Card', allow: !designerMode },
+      { id: 'pending', icon: '⏳', label: 'Pending Bills', allow: !designerMode },
+      { id: 'payroll', icon: '💳', label: 'Payroll & OT', allow: isManagerOrCashier(u) },
+      { id: 'leave', icon: '📅', label: 'Leave Roster', badge: isBossOrFamily(u) ? pendingLeavesCount : 0, allow: true },
+      { id: 'messages', icon: '💬', label: 'Team Chat & WA', allow: true },
+      { id: 'report', icon: '📊', label: '6PM Report', allow: isManagerOrCashier(u) },
+      { id: 'profile', icon: '👤', label: 'My Profile', allow: true }
     ].filter(n => n.allow);
 
     const alerts = getActiveAlerts();
@@ -1366,18 +1407,36 @@
       </div>
 
       ${ui.menuOpen ? `
-        <div class="fixed inset-0 bg-black/70 z-50 flex" onclick="ui.menuOpen=false; render();">
-          <div class="w-72 bg-[#111111] text-white h-full p-4 overflow-y-auto space-y-1 shadow-2xl border-r border-gray-800" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center pb-3 mb-2 border-b border-gray-800">
-              <span class="font-black text-xs text-[#E31E24]">☰ ROSHAN ADVERTISING MENU</span>
-              <button onclick="ui.menuOpen=false; render();" class="text-gray-400 hover:text-white font-black">✕</button>
+        <div class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex" onclick="ui.menuOpen=false; render();">
+          <div class="w-72 bg-gradient-to-b from-[#141414] to-[#0a0a0a] text-white h-full p-4 overflow-y-auto shadow-2xl border-r border-red-900/40" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center pb-3 mb-3 border-b border-gray-800">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-[#E31E24] animate-ping"></span>
+                <span class="font-black text-xs tracking-wider text-white">QUICK MENU</span>
+              </div>
+              <button onclick="ui.menuOpen=false; render();" class="bg-white/10 hover:bg-[#E31E24] w-7 h-7 rounded-full text-xs font-black flex items-center justify-center transition">✕</button>
             </div>
-            ${allNav.map(n => `
-              <button onclick="setPage('${n.id}')"
-                class="w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition ${ui.page === n.id ? 'bg-[#E31E24] text-white' : 'hover:bg-gray-800 text-gray-200'}">
-                ${n.label}
-              </button>
-            `).join('')}
+            <div class="space-y-1.5">
+              ${allNav.map(n => {
+                const active = ui.page === n.id;
+                return `
+                  <button onclick="setPage('${n.id}')"
+                    class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-150 ${
+                      active
+                        ? 'bg-gradient-to-r from-[#E31E24] to-red-700 text-white shadow-lg shadow-red-900/50 scale-[1.02]'
+                        : 'bg-white/[0.04] hover:bg-white/[0.12] text-gray-200 border border-white/[0.05]'
+                    }">
+                    <span class="flex items-center gap-2.5">
+                      <span class="text-sm">${n.icon}</span>
+                      <span>${n.label}</span>
+                    </span>
+                    ${n.badge > 0
+                      ? `<span class="px-2 py-0.5 text-[10px] font-black rounded-full ${active ? 'bg-white text-[#E31E24]' : 'bg-amber-400 text-black'}">${n.badge}</span>`
+                      : (active ? `<span class="text-[10px] opacity-90">●</span>` : '')}
+                  </button>
+                `;
+              }).join('')}
+            </div>
           </div>
         </div>
       ` : ''}
@@ -1546,7 +1605,7 @@
             { id: 'quotation', t: '📄 Quotation PDF', d: '1-Click Brand Letterhead PDF', c: 'bg-slate-800' },
             { id: 'tea', t: '☕ Tea Money & Leaves', d: `Purse: Rs.${cloudData.teaPurse}`, c: 'bg-amber-700' },
             { id: 'stock', t: '📦 Smart Stock', d: '1-Roll Left Low Stock Alert', c: 'bg-purple-700' },
-            { id: 'bookings', t: '🚗 Sticker Bay & Washing', d: 'Vehicle, Washing & Fixing', c: 'bg-cyan-800' }
+            { id: 'leave', t: '📅 Leave Roster', d: 'Poya + 3 Sun & Boss Approval', c: 'bg-cyan-800' }
           ].map(b => `
             <div onclick="setPage('${b.id}')" class="${b.c} text-white rounded-2xl p-4 shadow cursor-pointer hover:opacity-95 transition">
               <div class="font-black text-sm">${b.t}</div>
@@ -1558,7 +1617,7 @@
     `;
   }
 
-  // ================= 02 NEW BILL + ZERO-STORAGE PDF E-BILL =================
+  // ================= NEW BILL + ZERO-STORAGE PDF E-BILL =================
   function renderNewBill() {
     const d = ui.draftBill;
     const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty) * Number(it.price)), 0);
@@ -1667,7 +1726,6 @@
             </div>
           </div>
 
-          <!-- 80MM THERMAL RECEIPT & ZERO-STORAGE LETTERHEAD E-BILL -->
           <div class="lg:col-span-5 space-y-3">
             <div class="bg-gray-200 p-3 rounded-2xl">
               <p class="text-[10px] font-bold text-gray-600 text-center mb-1.5">X Printer 80T Preview (80mm Paper)</p>
@@ -1693,7 +1751,6 @@
               </div>
             </div>
 
-            <!-- Brand Letterhead PDF Template (Zero Storage) -->
             <div id="ebill_pdf_box" class="bg-white p-4 rounded-xl border shadow-sm text-xs">
               <div class="flex items-center justify-between border-b-2 border-[#E31E24] pb-2 mb-2">
                 <div class="flex items-center gap-2">${getBrandLogoSVG(40)} ${getBrandWordmark(false)}</div>
@@ -1751,10 +1808,9 @@
     `;
   }
 
-  // ================= 05 DESIGNER <-> PRINTING ROOM QUEUE =================
+  // ================= PRINTING ROOM QUEUE =================
   function renderPrintQueue() {
     const dp = ui.draftPrint;
-    const u = ui.user;
 
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
@@ -1845,7 +1901,7 @@
     `;
   }
 
-  // ================= 03 CASHIER HOME + COIN COUNTER + SHIFT HANDOVER =================
+  // ================= CASHIER HOME =================
   function renderCashierHome() {
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
@@ -1951,7 +2007,7 @@
     `;
   }
 
-  // ================= 04 JOBS (LINKED WITH BILL NO & BANK TRANSFERS) =================
+  // ================= JOBS =================
   function renderJobs() {
     const designerMode = isDesignerOnly(ui.user);
     const stepKeys = ['Mashimant', 'Quotation', 'JobStart', 'DesignerSelect', 'ArtworkOk', 'Print', 'Constructor', 'WorkStart', 'JobComplete', 'Invoice', 'Payment'];
@@ -2027,7 +2083,7 @@
     `;
   }
 
-  // ================= 06 QUOTATION GENERATOR (ZERO-STORAGE PDF) =================
+  // ================= QUOTATION GENERATOR =================
   function renderQuotation() {
     const dq = ui.draftQuote;
     const total = dq.items.reduce((s, it) => s + (Number(it.qty) * Number(it.price)), 0);
@@ -2075,7 +2131,7 @@
     `;
   }
 
-  // ================= 07 TEA MONEY & LEAVES =================
+  // ================= TEA MONEY & LEAVES =================
   function renderTeaMoney() {
     const u = ui.user;
     const isMgr = isManagerOrCashier(u);
@@ -2137,7 +2193,7 @@
     `;
   }
 
-  // ================= 08 STOCK (1-ROLL ALERT, MANUAL DEDUCT ONLY) =================
+  // ================= STOCK =================
   function renderStock() {
     return `
       <div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4">
@@ -2170,7 +2226,7 @@
     `;
   }
 
-  // ================= 09 VEHICLE STICKER BAY, WASHING & SITE FIXING BOOKINGS =================
+  // ================= BOOKINGS =================
   function renderBookings() {
     return `
       <div class="max-w-5xl mx-auto p-4 space-y-4">
@@ -2200,7 +2256,7 @@
     `;
   }
 
-  // ================= 12 PAYROLL, DESIGNER COMMISSION & FINGERPRINT OT =================
+  // ================= PAYROLL & FINGERPRINT =================
   function renderPayrollAndFingerprint() {
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
@@ -2228,7 +2284,7 @@
           <table class="w-full text-xs text-left">
             <thead class="bg-gray-100 font-black"><tr><th class="p-2">Staff</th><th class="p-2">Role</th><th class="p-2">Basic Salary</th><th class="p-2">Commission</th><th class="p-2">Advance</th><th class="p-2">Leaves</th><th class="p-2">Net Payable</th></tr></thead>
             <tbody>
-              ${cloudData.staff.filter(s => !s.isFamily).map((s, idx) => {
+              ${cloudData.staff.filter(s => !s.isFamily).map((s) => {
                 const net = (s.basicSalary || 0) + (s.commission || 0) - (s.advance || 0);
                 return `
                   <tr class="border-b">
@@ -2249,7 +2305,7 @@
     `;
   }
 
-  // ================= 15 DETAILED EVENING A4/80MM REPORT + BOSS & SWARNA WHATSAPP + 6-MONTH BACKUP =================
+  // ================= EVENING REPORT =================
   function renderDailyReport() {
     const today = getColomboDate();
     const bals = calcCashierBalances();
@@ -2284,7 +2340,6 @@
             </div>
           </div>
 
-          <!-- DETAILED BREAKDOWN AT THE TOP -->
           <div>
             <h3 class="font-black text-xs bg-gray-100 p-1.5 mb-1">1. සල්ලි ආපු විදිය (DETAILED INCOME — BILLS & TRANSFERS)</h3>
             <table class="w-full border-collapse text-[11px]">
@@ -2303,7 +2358,6 @@
             </table>
           </div>
 
-          <!-- TOTALS SUMMARY AT THE BOTTOM -->
           <div class="bg-gray-50 p-3 rounded-xl border space-y-1">
             <h3 class="font-black text-xs mb-1">3. SUMMARY TOTALS (අවසාන ශේෂයන්)</h3>
             <div class="flex justify-between"><span>Today Cash Received:</span><b>Rs. ${bals.todayCashIncome}</b></div>
@@ -2356,6 +2410,136 @@
     `;
   }
 
+  // ================= LEAVE ROSTER & 3-DAY BOSS APPROVAL PAGE =================
+  function renderLeaveRoster() {
+    const isBoss = isBossOrFamily(ui.user);
+    const defaultAdvanceDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    return `
+      <div class="max-w-5xl mx-auto p-4 space-y-4">
+        <div class="bg-[#111111] text-white p-4 rounded-2xl shadow border border-gray-800 space-y-1.5">
+          <h2 class="font-black text-sm text-amber-400">📅 ROSHAN ADVERTISING — OFFICIAL LEAVE ROSTER POLICY</h2>
+          <p class="text-xs text-gray-200">• සෑම සේවකයෙකුටම මාසයකට <b>පෝය නිවාඩු 1ක් + නිවාඩු ඉරිදා 3ක් (Poya + 3 Sundays Roster)</b> හිමිවේ.</p>
+          <p class="text-xs text-red-300 font-bold">• පෞද්ගලික නිවාඩු (Personal Leave) ලබා ගැනීමට අවම වශයෙන් <b>දින 3කට පෙර (3 Days Advance)</b> ඉල්ලුම් කළ යුතු අතර <b>Boss ගේ අනුමැතිය (Approval)</b> අනිවාර්ය වේ.</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h3 class="font-black text-sm">📝 REQUEST LEAVE (නිවාඩු ඉල්ලුම් කිරීම)</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <div>
+              <label class="text-[10px] font-bold block mb-1">Leave Date (දිනය)</label>
+              <input id="lv_date" type="date" value="${defaultAdvanceDate}" class="w-full border rounded-lg px-3 py-2 text-xs font-bold" />
+            </div>
+            <div>
+              <label class="text-[10px] font-bold block mb-1">Leave Category (වර්ගය)</label>
+              <select id="lv_type" class="w-full border rounded-lg px-2.5 py-2 text-xs font-bold bg-amber-50">
+                <option value="Personal Leave">Personal Leave (3 Days Advance)</option>
+                <option value="Roster Sunday / Poya">Roster Sunday / Poya Off</option>
+                <option value="Emergency Leave">Emergency Leave (හදිසි නිවාඩු)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-bold block mb-1">Reason (හේතුව)</label>
+              <input id="lv_reason" type="text" placeholder="හේතුව සඳහන් කරන්න..." class="w-full border rounded-lg px-3 py-2 text-xs font-bold" />
+            </div>
+            <div class="flex items-end">
+              <button onclick="submitLeaveRequest()" class="w-full bg-[#E31E24] hover:bg-red-700 text-white font-black rounded-lg px-4 py-2 text-xs">Submit for Boss Approval</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-2">
+          <h3 class="font-black text-sm">📋 LEAVE REQUESTS & BOSS APPROVALS (${(cloudData.leaveRequests || []).length})</h3>
+          ${(cloudData.leaveRequests || []).length === 0 ? `<p class="text-xs text-gray-500 py-3">තවම නිවාඩු ඉල්ලීම් නොමැත.</p>` : ''}
+          ${(cloudData.leaveRequests || []).map(l => {
+            const st = l.status || 'Approved';
+            const badgeCls = st === 'Approved' ? 'bg-emerald-100 text-emerald-900' : st === 'Rejected' ? 'bg-red-100 text-red-900' : 'bg-amber-200 text-amber-950';
+            return `
+              <div class="flex flex-wrap justify-between items-center gap-2 border-b py-2.5 text-xs">
+                <div>
+                  <span class="font-black text-sm">${l.name}</span>
+                  <span class="bg-gray-100 px-2 py-0.5 rounded font-bold ml-1">${l.leaveType || 'Leave'}</span>
+                  <span class="text-gray-700 font-bold ml-1">• ${l.date}</span>
+                  <div class="text-gray-600 mt-0.5">හේතුව: ${l.reason} ${l.approvedBy ? `<span class="text-emerald-700 font-bold">(By: ${l.approvedBy})</span>` : ''}</div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="px-2.5 py-1 rounded-full font-black text-[11px] ${badgeCls}">${st}</span>
+                  ${isBoss && st === 'Pending Boss Approval' ? `
+                    <button onclick="approveOrRejectLeave(${l.id}, 'Approved')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg font-black">✅ Approve</button>
+                    <button onclick="approveOrRejectLeave(${l.id}, 'Rejected')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg font-black">✕ Reject</button>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // ================= TEAM CHAT (SENDER NAME ON TOP) & WHATSAPP =================
+  function renderMessagesAndChat() {
+    const u = ui.user;
+    const msgs = cloudData.teamMessages || [];
+
+    return `
+      <div class="max-w-5xl mx-auto p-4 space-y-4">
+        <!-- INTERNAL TEAM CHAT WITH SENDER NAME ON TOP -->
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <div class="flex justify-between items-center border-b pb-2">
+            <h2 class="font-black text-sm text-[#E31E24]">💬 OFFICE TEAM CHAT (Logged-in Sender Name on Top)</h2>
+            <span class="text-[11px] font-bold text-gray-500">Sending as: <b>${u.name} (${u.id})</b></span>
+          </div>
+
+          <div class="flex gap-2">
+            <input id="team_msg_input" type="text" placeholder="පණිවිඩයක් ලියන්න (Message)..."
+              onkeydown="if(event.key==='Enter') sendTeamMessage()"
+              class="w-full border rounded-xl px-3 py-2 text-xs font-bold bg-gray-50 focus:bg-white" />
+            <button onclick="sendTeamMessage()" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-5 py-2 rounded-xl text-xs shrink-0">Send ➤</button>
+          </div>
+
+          <div class="max-h-72 overflow-y-auto space-y-2.5 bg-gray-100 p-3 rounded-xl border">
+            ${msgs.length === 0 ? `<p class="text-xs text-gray-500 text-center py-4">තවම පණිවිඩ නොමැත. පළමු පණිවිඩය යවන්න!</p>` : ''}
+            ${msgs.map(m => {
+              const isMe = m.senderId === u.id;
+              return `
+                <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
+                  <span class="text-[11px] font-black text-gray-700 mb-0.5 px-1">
+                    👤 ${m.senderName} <span class="text-[10px] font-bold text-gray-500">(${m.senderId} • ${m.time})</span>
+                  </span>
+                  <div class="max-w-[85%] px-3.5 py-2 rounded-2xl text-xs font-semibold shadow-xs ${
+                    isMe ? 'bg-[#111111] text-white rounded-tr-none' : 'bg-white text-gray-900 border rounded-tl-none'
+                  }">
+                    ${m.text}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-2">
+          <h2 class="font-black text-sm text-emerald-800">📲 1-CLICK WHATSAPP STAFF UPDATES</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            ${cloudData.staff.map(s => {
+              const rem = s.teaEarned - s.teaTaken;
+              const msg = `📋 *ROSHAN ADVERTISING UPDATE (${getColomboDate()})*\n👤 *${s.name} (${s.id})*\n☕ Tea Balance: Rs.${rem} | Leaves: ${s.leaves || 0}`;
+              return `<div class="border rounded-xl p-2.5 bg-gray-50 flex justify-between items-center text-xs">
+                <div><b>${s.name}</b> (${s.tel || 'No Tel'})</div>
+                <button onclick="${s.tel ? `openWhatsApp('${s.tel}', \`${msg}\`)` : `alert('WhatsApp Number නැත')`}" class="bg-emerald-600 text-white px-2.5 py-1 rounded font-bold">📲 WhatsApp</button>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-2">
+          <h3 class="font-black text-sm">🛕 REPEAT TEMPLES, SHOPS & COMPANIES DIRECTORY</h3>
+          ${(cloudData.clientsDir || []).map(c => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${c.name}</b> (${c.phone || '-'})</span><span class="font-bold text-gray-500">Orders: ${c.jobsCount}</span></div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   function render() {
     const appEl = document.getElementById('app');
     if (!ui.splashDone) {
@@ -2385,38 +2569,8 @@
       case 'payroll': body = renderPayrollAndFingerprint(); break;
       case 'report': body = renderDailyReport(); break;
       case 'profile': body = renderProfile(); break;
-      case 'leave':
-        body = `<div class="max-w-4xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4 space-y-3">
-          <h2 class="font-black text-base">📅 APPLY FOR LEAVE (නිවාඩු)</h2>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <input id="lv_date" type="date" value="${getColomboDate()}" class="border rounded-lg px-3 py-2 text-xs font-bold" />
-            <input id="lv_reason" type="text" placeholder="හේතුව..." class="border rounded-lg px-3 py-2 text-xs font-bold" />
-            <button onclick="submitLeaveRequest()" class="bg-[#E31E24] text-white font-black rounded-lg px-4 py-2 text-xs">Submit Leave</button>
-          </div>
-          ${(cloudData.leaveRequests || []).map(l => `<div class="text-xs border-b py-1.5"><b>${l.name}</b> — ${l.date} (${l.reason})</div>`).join('')}
-        </div>`;
-        break;
-      case 'messages':
-        body = `<div class="max-w-5xl mx-auto p-4 space-y-4">
-          <div class="bg-white p-4 rounded-2xl shadow border space-y-2">
-            <h2 class="font-black text-sm text-emerald-800">📲 1-CLICK WHATSAPP STAFF UPDATES</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              ${cloudData.staff.map(s => {
-                const rem = s.teaEarned - s.teaTaken;
-                const msg = `📋 *ROSHAN ADVERTISING UPDATE (${getColomboDate()})*\n👤 *${s.name} (${s.id})*\n☕ Tea Balance: Rs.${rem} | Leaves: ${s.leaves || 0}`;
-                return `<div class="border rounded-xl p-2.5 bg-gray-50 flex justify-between items-center text-xs">
-                  <div><b>${s.name}</b> (${s.tel || 'No Tel'})</div>
-                  <button onclick="${s.tel ? `openWhatsApp('${s.tel}', \`${msg}\`)` : `alert('WhatsApp Number නැත')`}" class="bg-emerald-600 text-white px-2.5 py-1 rounded font-bold">📲 WhatsApp</button>
-                </div>`;
-              }).join('')}
-            </div>
-          </div>
-          <div class="bg-white p-4 rounded-2xl shadow border space-y-2">
-            <h3 class="font-black text-sm">🛕 REPEAT TEMPLES, SHOPS & COMPANIES DIRECTORY</h3>
-            ${(cloudData.clientsDir || []).map(c => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${c.name}</b> (${c.phone || '-'})</span><span class="font-bold text-gray-500">Orders: ${c.jobsCount}</span></div>`).join('')}
-          </div>
-        </div>`;
-        break;
+      case 'leave': body = renderLeaveRoster(); break;
+      case 'messages': body = renderMessagesAndChat(); break;
       case 'rates':
         body = `<div class="max-w-4xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4">
           <h2 class="font-black text-base mb-3">💲 RATE CARD (10 SQFT- / 10 SQFT+)</h2>
