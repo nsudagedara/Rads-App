@@ -1544,6 +1544,8 @@
       { id: 'leave', icon: '📅', label: 'Leave Roster', badge: isBossOrFamily(u) ? pendingLeavesCount : 0, allow: true },
       { id: 'messages', icon: '💬', label: 'Team Chat & WA', allow: true },
       { id: 'report', icon: '📊', label: '6PM Report', allow: isManagerOrCashier(u) },
+      { id: 'sales', icon: '📈', label: 'ආදායම් වාර්තා', allow: isBillingRole() },
+      { id: 'guide', icon: '📖', label: 'සිංහල භාවිතය', allow: true },
       { id: 'profile', icon: '👤', label: 'My Profile', allow: true }
     ].filter(n => n.allow);
   }
@@ -2948,6 +2950,8 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     switch (ui.page) {
       case 'dashboard': body = renderDashboard(); break;
       case 'newbill': body = renderNewBill(); break;
+      case 'sales': body = isBillingRole()?renderSalesReport():renderDashboard(); break;
+      case 'guide': body = renderAppGuide(); break;
       case 'cashier': body = renderCashierHome(); break;
       case 'jobs': body = renderJobs(); break;
       case 'printqueue': body = renderPrintQueue(); break;
@@ -3049,7 +3053,7 @@ function takeBillSnapshot() {
   });
   if (d.items.some(isPlate) && (d.customer==='-' || !d.custPhone || !d.vehicle?.trim())) throw Error('Number Plate සඳහා නම, WhatsApp අංකය සහ vehicle number එක දාන්න.');
   if (items.some(isPlate)) {
-    if(!/^[A-Z]{2} [0-9]{4}$/.test(d.vehicle))throw Error('වාහන අංකයට ඉංග්‍රීසි අකුරු 2ක් සහ ඉලක්කම් 4ක් දාන්න.');
+    if(!/^(?:[A-Z]{2}-[A-Z]{2,3}|[A-Z]{2,3}) [0-9]{4}$/.test(d.vehicle))throw Error('වාහන අංකය NC-AWB 2020 හෝ AB 1234 ආකෘතියට ඇතුළත් කරන්න.');
     d.floor='Ground';
   }
   if (!FLOOR[d.floor]) throw Error('Cashier එක තෝරන්න.');
@@ -3401,7 +3405,7 @@ window.radsStaff = async mode => {
 window.radsBillButton = (type) => {
   const d=ui.draftBill;
   if(type==='plate'){
-    if(d.items.some(isPlate)){document.getElementById('rads-plate-prefix')?.focus();return;}
+    if(d.items.some(isPlate)){document.getElementById('rads-plate-province')?.focus();return;}
     const plate={baseName:'Number Plate',name:'Number Plate',qty:1,price:0,w:'',h:'',rate:''};
     const blank=d.items.findIndex(item=>!item.name&&!item.baseName);
     if(blank>=0)d.items.splice(blank,1,plate);else d.items.push(plate);
@@ -3413,7 +3417,7 @@ window.radsBillButton = (type) => {
   }
   if(type==='unpaid'){d.pending=true;d.advance=0;}
   render();
-  if(type==='plate')document.getElementById('rads-plate-prefix')?.focus();
+  if(type==='plate')document.getElementById('rads-plate-province')?.focus();
 };
 function pettyAmount(value) {
   const raw=String(value??'').trim();
@@ -3478,10 +3482,113 @@ function pettyMarkup(){
     ${rows.length?'':'<p class="text-xs text-gray-500">අත්තිකාරම් සටහන් නැහැ.</p>'}</section>`;
 }
 
+const RADS_RELEASE = 'Number Plate අංක, වර්ගය අනුව ආදායම් වාර්තා සහ සිංහල මාර්ගෝපදේශය';
+let salesFilter={query:'',from:'',to:'',plate:false};
+function vehicleParts(value) {
+  const match=String(value||'').toUpperCase().match(/^(?:([A-Z]{1,2})-)?([A-Z]{0,3})\s*([0-9]{0,4})$/);
+  return match ? {province:match[1]||'',prefix:match[2],number:match[3]} : {province:'',prefix:'',number:''};
+}
+function salesSummary(state,{query,from,to,plate}) {
+  const needle=query.trim().toLowerCase();
+  const payments=new Map();
+  const inRange=date=>Boolean(date)&&(!from||date>=from)&&(!to||date<=to);
+  for(const p of paymentRows(state)){
+    if(!inRange(p.date))continue;
+    if(!payments.has(p.bill))payments.set(p.bill,[]);
+    payments.get(p.bill).push(p);
+  }
+  const rows=[];
+  let cash=0,bank=0,billed=0;
+  for(const b of state.bills||[]){
+    if(b.status==='Void')continue;
+    const items=b.items||[];
+    const chosen=items.filter(i=>plate?(isPlate(i)&&(!needle||String(b.vehicle||'').toLowerCase().replace(/[^a-z0-9]/g,'').includes(needle.replace(/[^a-z0-9]/g,'')))):(!needle||[i.baseName,i.name,i.category,i.cat].some(v=>String(v||'').toLowerCase().includes(needle))));
+    if(!chosen.length)continue;
+    const lineCents=i=>Math.round((Number(i.qty)||0)*(Number(i.price)||0)*100);
+    const subtotal=items.reduce((n,i)=>n+lineCents(i),0);
+    const ratio=chosen.length===items.length?1:subtotal>0?chosen.reduce((n,i)=>n+lineCents(i),0)/subtotal:0;
+    const records=payments.get(b.id)||[];
+    if(!inRange(b.date)&&!records.length)continue;
+    let rowCash=0,rowBank=0;
+    for(const p of records){
+      const value=Math.round(Number(p.amount)*100*ratio);
+      if(p.method==='Cash')rowCash+=value;else rowBank+=value;
+    }
+    const rowBilled=inRange(b.date)?Math.round(Number(b.total||0)*100*ratio):0;
+    cash+=rowCash;bank+=rowBank;billed+=rowBilled;
+    rows.push({bill:b,chosen,received:(rowCash+rowBank)/100,billed:rowBilled/100,records});
+  }
+  return {rows,cash:cash/100,bank:bank/100,billed:billed/100};
+}
+function renderSalesReport() {
+  return `<section class="max-w-6xl mx-auto p-4 space-y-4"><h2 class="text-xl font-black">බිල් සහ ලැබුණු ආදායම</h2>
+    <form id="rads-sales-form" class="bg-white p-4 rounded-xl border grid sm:grid-cols-4 gap-3">
+    <label>වාර්තාව<select name="mode" class="block w-full border rounded p-2"><option value="sales">බිල් වර්ගය</option><option value="plate" ${salesFilter.plate?'selected':''}>Number Plate</option></select></label>
+    <label id="rads-sales-query-label"><span></span><input name="query" class="block w-full border rounded p-2" value="${txt(salesFilter.query)}"></label>
+    <label>දිනයේ සිට<input type="date" name="from" class="block w-full border rounded p-2" value="${txt(salesFilter.from)}"></label>
+    <label>දිනය දක්වා<input type="date" name="to" class="block w-full border rounded p-2" value="${txt(salesFilter.to)}"></label>
+    <button class="bg-black text-white p-2 rounded font-bold" type="submit">සොයන්න</button></form>
+    <p class="text-sm text-gray-600">බිල් වටිනාකම බිල් දිනයෙන්ද, ලැබීම් ගෙවූ දිනයෙන්ද ගණන් වේ. මිශ්‍ර බිලක ගෙවීම් item වටිනාකම් අනුපාතයට බෙදේ.</p>
+    <div id="rads-sales-results" aria-live="polite"></div></section>`;
+}
+function bindSalesReport(){
+  const form=document.getElementById('rads-sales-form');
+  if(!form)return;
+  const target=document.getElementById('rads-sales-results');
+  const label=document.querySelector('#rads-sales-query-label span');
+  function setLabel(){
+    const plate=form.elements.mode.value==='plate';
+    label.textContent=plate?'වාහන අංකය (විකල්ප)':'Item නම හෝ වර්ගය';
+    form.elements.query.placeholder=plate?'NC-AWB 2020':'Tinted, Number Plate…';
+  }
+  function show(){
+    const {rows,cash,bank,billed}=salesSummary(cloudData,salesFilter);
+    target.innerHTML=`<div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">${[['බිල් වටිනාකම',billed],['Cash ලැබීම්',cash],['Bank ලැබීම්',bank],['මුළු ලැබීම්',cash+bank]].map(([label,value])=>`<div class="bg-white border rounded-xl p-3"><span>${label}</span><strong class="block">Rs. ${currency(value)}</strong></div>`).join('')}</div>
+    <div class="overflow-x-auto bg-white border rounded-xl p-3"><table class="w-full text-sm text-left"><thead><tr><th>බිල / දිනය</th><th>පාරිභෝගිකයා / වාහනය</th><th>Item</th><th>බිල් වටිනාකම</th><th>ලැබුණා</th><th>ලැබුණු දින</th></tr></thead><tbody>
+    ${rows.map(({bill:b,chosen,received,billed,records})=>`<tr class="border-t"><td class="p-2"><button type="button" class="underline" data-sales-id="${txt(b.id)}">${txt(b.id)}</button><br>${txt(b.date)}</td><td>${txt(b.customer)}<br>${txt(b.vehicle)}</td><td>${chosen.map(i=>txt(i.name||i.baseName)).join(', ')}</td><td>Rs. ${currency(billed)}</td><td>Rs. ${currency(received)}</td><td>${[...new Set(records.map(p=>p.date))].map(txt).join(', ')||'—'}</td></tr>`).join('')}</tbody></table>
+    ${rows.length?'':'<p class="mt-2">ගැළපෙන බිල් හෝ ගෙවීම් නැහැ.</p>'}</div>`;
+    target.querySelectorAll('[data-sales-id]').forEach(button=>{button.onclick=()=>radsShowBill(button.dataset.salesId);});
+  }
+  form.elements.mode.onchange=()=>{form.elements.query.value='';setLabel();form.requestSubmit();};
+  form.onsubmit=e=>{
+    e.preventDefault();
+    const {query,from,to,mode}=Object.fromEntries(new FormData(form));
+    if(from&&to&&from>to){target.textContent='ආරම්භක දිනය අවසාන දිනයට පෙර තෝරන්න.';return;}
+    salesFilter={query,from,to,plate:mode==='plate'};
+    show();
+  };
+  setLabel();show();
+}
+window.radsOpenPlates=()=>{
+  if(!isBillingRole())return;
+  salesFilter={query:'',from:'',to:'',plate:true};
+  setPage('sales');
+};
+function renderAppGuide() {
+  const sections=[
+    ['පිවිසීම සහ Dashboard','ඔබගේ පරිශීලක ගිණුමෙන් ඇතුළු වන්න. මෙනුවෙන් අවශ්‍ය අංශය තෝරන්න. Dashboard එකේ අද Cash, Bank, වියදම් සහ drawer balance බලන්න.'],
+    ['අලුත් බිල සහ Receipt','+ බිල ඔබන්න. නම, දුරකථනය, item, ප්‍රමාණය සහ මිල දාන්න. මුදල් ලැබුණා නම් ගෙවීමේ ක්‍රමය සහ මුදල දාන්න. බිල පරීක්ෂා කර තහවුරු කර Save හෝ Save & Print ඔබන්න. බිල් ඉතිහාසයේ අංකය තෝරා නැවත මුද්‍රණය හෝ WhatsApp කළ හැකියි.'],
+    ['Number Plate','අලුත් බිලේ Number Plate ඔබන්න. NC-AWB 2020 වැනි අංකයක පළාත් කේතය NC, අකුරු AWB සහ අංක 2020 වෙන වෙනම දාන්න. මුල් AB 1234 ආකෘතියට පළාත් කේතය හිස් තබන්න. Plate මිල, නම සහ WhatsApp අංකය දාන්න. වෙනම ලැයිස්තුවට Plate History ඔබන්න.'],
+    ['බිල් සහ ලැබුණු ආදායම','මෙනුවේ ආදායම් වාර්තා තෝරන්න. Tinted වැනි වර්ගයක් ටයිප් කර දින දෙක දී සොයන්න. Number Plate වාර්තාවේ වාහන අංකයකින්ද සෙවිය හැකියි. ලැබීම් ගෙවූ දිනයෙන් සහ බිල් වටිනාකම බිල් දිනයෙන් ගණන් වේ.'],
+    ['ණය සහ කොටස් ගෙවීම්','Pending Bills හෝ Bill History වෙතින් අදාළ බිලේ Collect ඔබන්න. ලැබුණු මුදල සහ Cash හෝ Bank තහවුරු කරන්න. ඉතිරි මුදල බිල් වාර්තාවෙන් බලන්න.'],
+    ['Cash Counter සහ Petty Cash','නිවැරදි cashier එක තෝරන්න. සාමාන්‍ය වියදම් Expenses හරහා දාන්න. මිලදී ගැනීමකට කලින් මුදල් දුන්නොත් Petty Cash හි මුදල් නිකුත් කරන්න ඔබන්න. පස්සේ එම සටහනෙන් ඉතුරු මුදල භාරගන්න. සැබෑ වියදම ස්වයංක්‍රීයව සටහන් වේ.'],
+    ['තේ මුදල්, Payroll සහ Leave','Tea & Leaves හි සේවක පැමිණීම හා තේ මුදල් වෙන් කිරීම සටහන් කරන්න. Leave Roster හි දිනය, වර්ගය සහ හේතුව දාලා ඉල්ලීම ඉදිරිපත් කරන්න. අවසර ඇති පරිශීලකයා Payroll & OT වෙතින් fingerprint CSV එක load කර සටහන් බලන්න.'],
+    ['Quotation, වැඩ සහ මුද්‍රණය','Quotation වලින් මිල ගණන් සකසා PDF ගන්න. Jobs & Bank හි වැඩ සහ ගෙවීම් සටහන් කරන්න. Print Queue හි Job එකට file එක සහ විස්තර එකතු කර printing room වෙත යවන්න. Sticker & Fixing තුළ වාහන සහ site bookings පාලනය කරන්න.'],
+    ['Stock සහ Rate Card','Stock Alert වෙතින් ඇතුළත් තොග, භාවිතය සහ ඉතිරිය බලන්න. අවසර තිබේ නම් අලුත් stock එකතු කරන්න, ගණන නිවැරදි කරන්න හෝ archive කරන්න. Rate Card එකේ සේවා මිල බලන්න.'],
+    ['Reports, Team Chat සහ Profile','6PM Report වෙතින් දෛනික ගණන් බලන්න, A4 print කරන්න හෝ backup එක බාගන්න. Team Chat & WA වෙතින් කණ්ඩායම් පණිවිඩ බලන්න. My Profile වෙතින් ඔබේ විස්තර යාවත්කාලීන කරන්න.']
+  ];
+  return `<section class="max-w-4xl mx-auto p-4 space-y-3"><h2 class="text-xl font-black">සිංහල භාවිත මාර්ගෝපදේශය</h2>
+  ${sections.map(([title,description])=>`<details class="bg-white border rounded-xl p-3"><summary class="font-bold cursor-pointer">${title}</summary><p class="mt-2">${description}</p></details>`).join('')}
+  <div class="bg-black text-white rounded-xl p-4"><strong>Technical Support · NS Udagedara</strong><br><a class="underline" href="https://wa.me/94769882044" target="_blank" rel="noopener noreferrer">WhatsApp 076 988 2044</a></div></section>`;
+}
+
 const oldRender = render;
 render = function(){
   oldRender();
   if(!ui.user)return;
+  const main=document.querySelector('#app main');
+  main?.insertAdjacentHTML('afterbegin',`<div class="mx-3 mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm" role="status"><strong>අලුත් Update</strong> · ${RADS_RELEASE} <button type="button" onclick="setPage('guide')" class="underline font-bold">භාවිතය බලන්න</button></div>`);
+  if(ui.page==='sales')bindSalesReport();
   if(isBillingRole()&&!ui.tvMode){
     const quick=document.createElement('button');
     quick.type='button';quick.className='rads-quick-bill';quick.textContent='+ බිල';
@@ -3500,23 +3607,27 @@ render = function(){
     if(holder){
       const plateIndex=d.items.findIndex(isPlate);
       const plate=d.items[plateIndex];
-      const vehicle=String(d.vehicle||'').toUpperCase();
-      holder.innerHTML=`<div class="rads-actions"><button onclick="radsBillButton('plate')">Number Plate</button><button onclick="radsBillButton('paid')">සම්පූර්ණ ගෙවීම</button><button onclick="radsBillButton('unpaid')">ගෙවීමක් නැහැ</button></div>
+      const vehicle=vehicleParts(d.vehicle);
+      holder.innerHTML=`<div class="rads-actions"><button onclick="radsBillButton('plate')">Number Plate</button><button onclick="radsOpenPlates()">Plate History</button><button onclick="radsBillButton('paid')">සම්පූර්ණ ගෙවීම</button><button onclick="radsBillButton('unpaid')">ගෙවීමක් නැහැ</button></div>
       <div class="grid sm:grid-cols-3 gap-2"><label>ශාඛාව<select id="rads-branch">${branches.map(b=>`<option${(d.branch||branches[0])===b?' selected':''}>${b}</option>`).join('')}</select></label>
       <label>Title<select id="rads-title">${['','Mr.','Mrs.','Ms.'].map(t=>`<option${(d.title||'')===t?' selected':''}>${t}</option>`).join('')}</select></label>
       </div>
-      ${plate?`<div class="grid grid-cols-3 gap-2"><label>අකුරු 2<input id="rads-plate-prefix" maxlength="2" autocapitalize="characters" placeholder="AB" value="${txt(vehicle.replace(/[^A-Z]/g,'').slice(0,2))}"></label>
-      <label>අංක 4<input id="rads-plate-number" maxlength="4" inputmode="numeric" placeholder="1234" value="${txt(vehicle.replace(/[^0-9]/g,'').slice(0,4))}"></label>
+      ${plate?`<div class="grid grid-cols-2 sm:grid-cols-4 gap-2"><label>පළාත් කේතය<input id="rads-plate-province" maxlength="2" autocapitalize="characters" placeholder="NC" value="${txt(vehicle.province)}"></label>
+      <label>අකුරු 2–3<input id="rads-plate-prefix" maxlength="3" autocapitalize="characters" placeholder="AWB" value="${txt(vehicle.prefix)}"></label>
+      <label>අංක 4<input id="rads-plate-number" maxlength="4" inputmode="numeric" placeholder="2020" value="${txt(vehicle.number)}"></label>
       <label>Plate මිල (Rs.)<input id="rads-plate-price" type="number" min="0.01" step="0.01" value="${plate.price||''}"></label></div>`:''}<label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>`;
       for(const [id,key] of [['rads-branch','branch'],['rads-title','title']])document.getElementById(id).oninput=e=>{d[key]=e.target.value;};
       if(plate){
+        const province=document.getElementById('rads-plate-province');
         const prefix=document.getElementById('rads-plate-prefix'), number=document.getElementById('rads-plate-number'), price=document.getElementById('rads-plate-price');
         const updateVehicle=()=>{
-          prefix.value=prefix.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,2);
+          province.value=province.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,2);
+          prefix.value=prefix.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
           number.value=number.value.replace(/[^0-9]/g,'').slice(0,4);
-          d.vehicle=(prefix.value+' '+number.value).trim();
+          d.vehicle=((province.value?province.value+'-':'')+prefix.value+' '+number.value).trim();
         };
-        prefix.oninput=number.oninput=updateVehicle;
+        province.oninput=prefix.oninput=number.oninput=updateVehicle;
+        province.onkeydown=e=>handleBillEnter(e,'rads-plate-prefix');
         prefix.onkeydown=e=>handleBillEnter(e,'rads-plate-number');
         number.onkeydown=e=>handleBillEnter(e,'rads-plate-price');
         const unitPrice=document.getElementById('draftBill_price_'+plateIndex);
