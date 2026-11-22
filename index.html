@@ -238,7 +238,7 @@
     coins: { c5000: 0, c2000: 0, c1000: 0, c500: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0 },
     draftPrint: {
       jobId: '0001',
-      filePath: '\\\\PC10\\D\\Jobs\\',
+      filePath: '\\PC10\D\Jobs\',
       items: [{ fileName: '', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }]
     },
     draftBill: {
@@ -271,7 +271,7 @@
     extraWorks: INITIAL_EXTRA,
     rates: RATE_CARD_ITEMS,
     printQueue: [
-      { id: 'PQ-01', jobId: '0001', designer: 'Nimantha', filePath: '\\\\PC10\\D\\Jobs\\Kelani_Matara', items: [{ fileName: 'Kelani_Banner.tif', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }], status: 'Pending Print', time: '10:30' }
+      { id: 'PQ-01', jobId: '0001', designer: 'Nimantha', filePath: '\\PC10\D\Jobs\Kelani_Matara', items: [{ fileName: 'Kelani_Banner.tif', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }], status: 'Pending Print', time: '10:30' }
     ],
     bookings: [
       { id: 1, type: 'Vehicle Sticker Bay', title: 'CAB-4582 (Full Body Wrap)', date: '2026-11-22', time: '09:30 AM', status: 'Confirmed' },
@@ -844,7 +844,7 @@
     await saveCloud(`Designer ${ui.user.name} sent Print Order ${nextPq} (Job #${dp.jobId})`);
     ui.draftPrint = {
       jobId: '',
-      filePath: '\\\\' + ui.user.id + '\\D\\Jobs\\',
+      filePath: '\\' + ui.user.id + '\D\Jobs\',
       items: [{ fileName: '', material: 'Flex', size: '', pass: '6 Pass', copies: 1 }]
     };
     alert(`✅ Print Order (${nextPq}) Printing Room එකට යවන ලදී!`);
@@ -967,7 +967,7 @@
     render();
   };
 
-  // ================= LEAVE SYSTEM (POYA + 3 SUNDAYS ROSTER + 3-DAY ADVANCE BOSS APPROVAL) =================
+  // ================= LEAVE SYSTEM =================
   window.submitLeaveRequest = async () => {
     const date = document.getElementById('lv_date').value;
     const leaveType = document.getElementById('lv_type').value;
@@ -1022,7 +1022,7 @@
     render();
   };
 
-  // ================= TEAM CHAT WITH SENDER NAME ON TOP =================
+  // ================= TEAM CHAT =================
   window.sendTeamMessage = async () => {
     const input = document.getElementById('team_msg_input');
     const text = input.value.trim();
@@ -1167,6 +1167,44 @@
     link.href = URL.createObjectURL(blob);
     link.download = `Roshan_Advertising_Accounts_${monthPrefix}.csv`;
     link.click();
+  };
+
+  // ================= EDITABLE RATE CARD FUNCTIONS =================
+  window.addNewRateItem = async () => {
+    const cat = document.getElementById('rc_cat').value.trim() || 'General';
+    const name = document.getElementById('rc_name').value.trim();
+    const u10m = Number(document.getElementById('rc_u10m').value || 0);
+    const u10p = Number(document.getElementById('rc_u10p').value || 0);
+    const isSqft = document.getElementById('rc_sqft').checked;
+    if (!name) return alert('Item නම ඇතුළත් කරන්න.');
+
+    const maxId = cloudData.rates.reduce((m, r) => Math.max(m, Number(r.id || 0)), 0);
+    cloudData.rates.push({ id: maxId + 1, cat, name, u10m, u10p: isSqft ? u10p : u10m, isSqft });
+    await saveCloud(`Added Rate Card item: ${name}`);
+    alert('✅ අලුත් Item එක Rate Card එකට එකතු විය!');
+    render();
+  };
+
+  window.saveRateRow = async (idx) => {
+    const r = cloudData.rates[idx];
+    if (!r) return;
+    r.cat = document.getElementById(`rc_cat_${idx}`).value.trim() || r.cat;
+    r.name = document.getElementById(`rc_name_${idx}`).value.trim() || r.name;
+    r.u10m = Number(document.getElementById(`rc_u10m_${idx}`).value || 0);
+    r.u10p = Number(document.getElementById(`rc_u10p_${idx}`).value || 0);
+    r.isSqft = document.getElementById(`rc_sqft_${idx}`).checked;
+    await saveCloud(`Updated Rate Card: ${r.name} (10-: Rs.${r.u10m}, 10+: Rs.${r.u10p})`);
+    alert(`✅ "${r.name}" මිල ගණන් Cloud එකේ Save විය!`);
+    render();
+  };
+
+  window.deleteRateRow = async (idx) => {
+    const r = cloudData.rates[idx];
+    if (!r) return;
+    if (!confirm(`"${r.name}" Rate Card එකෙන් ඉවත් කරන්නද?`)) return;
+    cloudData.rates.splice(idx, 1);
+    await saveCloud(`Deleted Rate Card item: ${r.name}`);
+    render();
   };
 
   // ================= STARTUP SPLASH SCREEN =================
@@ -1353,7 +1391,7 @@
     `;
   }
 
-  // ================= SMART SHORT HIGHLIGHTED MENU (NO NUMBERS) =================
+  // ================= SMART SHORT HIGHLIGHTED MENU =================
   function renderTopBarAndAlerts() {
     const u = ui.user;
     const designerMode = isDesignerOnly(u);
@@ -1605,7 +1643,7 @@
             { id: 'quotation', t: '📄 Quotation PDF', d: '1-Click Brand Letterhead PDF', c: 'bg-slate-800' },
             { id: 'tea', t: '☕ Tea Money & Leaves', d: `Purse: Rs.${cloudData.teaPurse}`, c: 'bg-amber-700' },
             { id: 'stock', t: '📦 Smart Stock', d: '1-Roll Left Low Stock Alert', c: 'bg-purple-700' },
-            { id: 'leave', t: '📅 Leave Roster', d: 'Poya + 3 Sun & Boss Approval', c: 'bg-cyan-800' }
+            { id: 'rates', t: '📐 Editable Rate Card', d: 'Edit Prices & Add New Items', c: 'bg-cyan-800' }
           ].map(b => `
             <div onclick="setPage('${b.id}')" class="${b.c} text-white rounded-2xl p-4 shadow cursor-pointer hover:opacity-95 transition">
               <div class="font-black text-sm">${b.t}</div>
@@ -1646,7 +1684,7 @@
               </div>
               <div>
                 <label class="text-[11px] font-bold">WhatsApp (Optional)</label>
-                <input type="text" value="${d.custPhone}" oninput="ui.draftBill.custPhone=this.value;" placeholder="07X XXX XXXX" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold" />
+                <input type="text" value="${d.custPhone}" oninput="ui.draftBill.custPhone=this.value;" placeholder="07X XXX XXXX" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Payment Mode</label>
@@ -1826,7 +1864,7 @@
             </div>
             <div class="sm:col-span-2">
               <label class="text-[11px] font-bold">Saved File Path (Copy-Paste Folder Location)</label>
-              <input type="text" value="${dp.filePath}" oninput="ui.draftPrint.filePath=this.value;" placeholder="\\\\PC10\\D\\Jobs\\Customer_Folder" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold bg-amber-50" />
+              <input type="text" value="${dp.filePath}" oninput="ui.draftPrint.filePath=this.value;" placeholder="\\PC10\D\Jobs\Customer_Folder" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold bg-amber-50" />
             </div>
           </div>
 
@@ -2126,6 +2164,89 @@
           </table>
           <div class="text-right font-black text-base text-[#E31E24]">TOTAL ESTIMATE: Rs. ${total.toLocaleString()}</div>
           <div class="text-[10px] text-gray-500 mt-6 pt-2 border-t text-center">Medirigiriya • Next Branch Hingurakgoda.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ================= EDITABLE RATE CARD VIEW =================
+  function renderRateCard() {
+    const canEdit = isManagerOrCashier(ui.user);
+    return `
+      <div class="max-w-5xl mx-auto p-4 space-y-4">
+        ${canEdit ? `
+          <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+            <div class="flex justify-between items-center border-b pb-2">
+              <h2 class="font-black text-sm text-[#E31E24]">➕ ADD NEW ITEM TO RATE CARD (අලුත් මිලක් එකතු කිරීම)</h2>
+              <span class="text-[11px] font-bold text-gray-500">Cloud Synced • Auto-Updates Bills & Quotations</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
+              <div>
+                <label class="text-[10px] font-bold block mb-1">Category</label>
+                <input id="rc_cat" type="text" placeholder="Flex / Sticker..." class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
+              </div>
+              <div class="col-span-2">
+                <label class="text-[10px] font-bold block mb-1">Item Name</label>
+                <input id="rc_name" type="text" placeholder="e.g. Flex (8 Pass)" class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
+              </div>
+              <div>
+                <label class="text-[10px] font-bold block mb-1">10 SQFT- / Unit Price</label>
+                <input id="rc_u10m" type="number" placeholder="Rs." class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-black" />
+              </div>
+              <div>
+                <label class="text-[10px] font-bold block mb-1">10 SQFT+ Price</label>
+                <input id="rc_u10p" type="number" placeholder="Rs." class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-black" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                  <input id="rc_sqft" type="checkbox" checked /> SQFT Calc?
+                </label>
+                <button onclick="addNewRateItem()" class="bg-[#E31E24] hover:bg-red-700 text-white font-black py-1.5 px-3 rounded-lg text-xs">+ Add Item</button>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="bg-white p-4 rounded-2xl shadow border overflow-x-auto">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="font-black text-base">💲 EDITABLE RATE CARD (${cloudData.rates.length} Items)</h2>
+            ${canEdit ? `<span class="text-[11px] font-bold text-emerald-700">✏️ අගයන් වෙනස් කර "Save" ඔබන්න</span>` : ''}
+          </div>
+          <table class="w-full text-xs text-left">
+            <thead class="bg-gray-100 font-black">
+              <tr>
+                <th class="p-2">Category</th>
+                <th class="p-2">Item Name</th>
+                <th class="p-2">10 SQFT- (Rs.)</th>
+                <th class="p-2">10 SQFT+ (Rs.)</th>
+                <th class="p-2 text-center">SQFT</th>
+                ${canEdit ? `<th class="p-2 text-right">Actions</th>` : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${cloudData.rates.map((r, idx) => canEdit ? `
+                <tr class="border-b hover:bg-gray-50">
+                  <td class="p-1.5"><input id="rc_cat_${idx}" type="text" value="${r.cat}" class="w-24 border rounded px-2 py-1 text-xs font-bold text-gray-700 bg-white" /></td>
+                  <td class="p-1.5"><input id="rc_name_${idx}" type="text" value="${r.name}" class="w-full min-w-[160px] border rounded px-2 py-1 text-xs font-black bg-white" /></td>
+                  <td class="p-1.5"><input id="rc_u10m_${idx}" type="number" value="${r.u10m}" class="w-24 border rounded px-2 py-1 text-xs font-black text-right bg-amber-50" /></td>
+                  <td class="p-1.5"><input id="rc_u10p_${idx}" type="number" value="${r.u10p}" class="w-24 border rounded px-2 py-1 text-xs font-black text-right bg-amber-50" /></td>
+                  <td class="p-1.5 text-center"><input id="rc_sqft_${idx}" type="checkbox" ${r.isSqft ? 'checked' : ''} /></td>
+                  <td class="p-1.5 text-right whitespace-nowrap space-x-1">
+                    <button onclick="saveRateRow(${idx})" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded font-black text-[11px]">💾 Save</button>
+                    <button onclick="deleteRateRow(${idx})" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-1 rounded font-bold text-[11px]">✕</button>
+                  </td>
+                </tr>
+              ` : `
+                <tr class="border-b">
+                  <td class="p-2 text-gray-500 font-bold">${r.cat}</td>
+                  <td class="p-2 font-black">${r.name}</td>
+                  <td class="p-2 font-bold">Rs. ${r.u10m}</td>
+                  <td class="p-2 font-bold">Rs. ${r.u10p}</td>
+                  <td class="p-2 text-center">${r.isSqft ? '✅' : 'Unit'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
         </div>
       </div>
     `;
@@ -2477,14 +2598,13 @@
     `;
   }
 
-  // ================= TEAM CHAT (SENDER NAME ON TOP) & WHATSAPP =================
+  // ================= TEAM CHAT & WHATSAPP =================
   function renderMessagesAndChat() {
     const u = ui.user;
     const msgs = cloudData.teamMessages || [];
 
     return `
       <div class="max-w-5xl mx-auto p-4 space-y-4">
-        <!-- INTERNAL TEAM CHAT WITH SENDER NAME ON TOP -->
         <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
           <div class="flex justify-between items-center border-b pb-2">
             <h2 class="font-black text-sm text-[#E31E24]">💬 OFFICE TEAM CHAT (Logged-in Sender Name on Top)</h2>
@@ -2571,13 +2691,7 @@
       case 'profile': body = renderProfile(); break;
       case 'leave': body = renderLeaveRoster(); break;
       case 'messages': body = renderMessagesAndChat(); break;
-      case 'rates':
-        body = `<div class="max-w-4xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4">
-          <h2 class="font-black text-base mb-3">💲 RATE CARD (10 SQFT- / 10 SQFT+)</h2>
-          <table class="w-full text-xs text-left"><thead class="bg-gray-100 font-black"><tr><th class="p-2">Category</th><th class="p-2">Item</th><th class="p-2">10 SQFT-</th><th class="p-2">10 SQFT+</th></tr></thead>
-          <tbody>${cloudData.rates.map(r => `<tr class="border-b"><td class="p-2 text-gray-500 font-bold">${r.cat}</td><td class="p-2 font-black">${r.name}</td><td class="p-2 font-bold">Rs. ${r.u10m}</td><td class="p-2 font-bold">Rs. ${r.u10p}</td></tr>`).join('')}</tbody></table>
-        </div>`;
-        break;
+      case 'rates': body = renderRateCard(); break;
       case 'pending':
         const pBills = cloudData.bills.filter(b => b.status === 'Pending' || b.status === 'Balance Due');
         body = `<div class="max-w-4xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4 space-y-2">
