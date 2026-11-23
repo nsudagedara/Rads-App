@@ -1377,7 +1377,7 @@
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
     const today = getColomboDate();
-    const activeJobs = cloudData.jobs.filter(j => !j.steps.JobComplete);
+    const activeJobs = cloudData.jobs.filter(j => !j.deletedAt && !j.steps.JobComplete);
     const lowStock = cloudData.stock.filter(s => !s.archived && (s.bought - s.used) <= 1);
 
     return `
@@ -1557,6 +1557,8 @@
       { id: 'leave', icon: '📅', label: 'Leave Roster', badge: isBossOrFamily(u) ? pendingLeavesCount : 0, allow: true },
       { id: 'messages', icon: '💬', label: 'Team Chat & WA', allow: true },
       { id: 'report', icon: '📊', label: '6PM Report', allow: isManagerOrCashier(u) },
+      { id: 'yard', icon: '📦', label: 'Yard Stock', allow: true },
+      { id: 'plates', icon: '🚘', label: 'Number Plate', allow: isBillingRole() },
       { id: 'sales', icon: '📈', label: 'ආදායම් වාර්තා', allow: isBillingRole() },
       { id: 'guide', icon: '📖', label: 'සිංහල භාවිතය', allow: true },
       { id: 'profile', icon: '👤', label: 'My Profile', allow: true }
@@ -1666,7 +1668,7 @@
     const todayPettyCash = bals.todayExpenses + bals.todayTeaDeducted;
 
     if (designerMode) {
-      const myActiveJobs = cloudData.jobs.filter(j => !j.steps.JobComplete && jobBelongsTo(j,u));
+      const myActiveJobs = cloudData.jobs.filter(j => !j.deletedAt && !j.steps.JobComplete && jobBelongsTo(j,u));
       const myPrintedAlerts = (cloudData.printQueue || []).filter(p => p.designer === u.name && p.status === 'Printed');
 
       return `
@@ -2344,8 +2346,9 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     const designerMode = isDesignerOnly(ui.user);
     const stepKeys = ['Mashimant', 'Quotation', 'JobStart', 'DesignerSelect', 'ArtworkOk', 'Print', 'Constructor', 'WorkStart', 'JobComplete', 'Invoice', 'Payment'];
 
-    const myJobs=cloudData.jobs.filter(j=>jobBelongsTo(j,ui.user));
-    const visibleJobs=designerMode||ui.myJobsOnly?myJobs:cloudData.jobs;
+    const activeRecords=cloudData.jobs.filter(j=>!j.deletedAt);
+    const myJobs=activeRecords.filter(j=>jobBelongsTo(j,ui.user));
+    const visibleJobs=designerMode||ui.myJobsOnly?myJobs:activeRecords;
     const groups=[['වැඩ කරමින් පවතින Jobs',visibleJobs.filter(j=>!j.steps.JobComplete)],['අවසන් කළ Jobs',visibleJobs.filter(j=>j.steps.JobComplete)]];
 
     return `
@@ -2388,6 +2391,7 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
                     <span class="font-black text-sm ml-1">${j.name}</span>
                   </div>
                   <div class="text-xs font-bold flex flex-wrap items-center gap-2">
+                    ${isBossOrFamily(ui.user)?`<button type="button" class="text-red-700 underline" onclick="radsDeleteJob(this.dataset.job)" data-job="${txt(j.id)}">Delete Job</button>`:''}
                     <span>Finish: <b class="text-red-600">${txt(j.finish)}</b> | Designer: <b>${txt(staffDisplay(j.designerId,j.designer))}</b> | Added by: <b>${txt(staffDisplay(j.creatorId,j.giver))}</b> · ${txt(j.creatorSection)}</span>
                     ${!designerMode ? `<span class="text-cyan-800">🏦 Bank Paid: Rs.${j.bankPaid || 0}</span>` : ''}
                     ${!designerMode ? `<button onclick="addJobBankTransfer(${jIdx})" class="bg-cyan-700 text-white px-2 py-0.5 rounded text-[11px]">🏦 + Bank Transfer</button>` : ''}
@@ -2984,6 +2988,8 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     switch (ui.page) {
       case 'dashboard': body = renderDashboard(); break;
       case 'newbill': body = renderNewBill(); break;
+      case 'yard': body = renderYardStock(); break;
+      case 'plates': body = isBillingRole()?renderPlateOrders():renderDashboard(); break;
       case 'sales': body = isBillingRole()?renderSalesReport():renderDashboard(); break;
       case 'guide': body = renderAppGuide(); break;
       case 'cashier': body = renderCashierHome(); break;
@@ -3097,6 +3103,7 @@ function takeBillSnapshot() {
   if (items.some(isPlate)) {
     if(!/^(?:[A-Z]{2}-[A-Z]{2,3}|[A-Z]{2,3}) [0-9]{4}$/.test(d.vehicle))throw Error('වාහන අංකය NC-AWB 2020 හෝ AB 1234 ආකෘතියට ඇතුළත් කරන්න.');
     d.floor='Ground';
+    if(String(d.plateHours??'').trim())plateDue(d.plateHours);
   }
   if (!FLOOR[d.floor]) throw Error('Cashier එක තෝරන්න.');
   d.serviceCharge = fixed(d.serviceCharge||0);
@@ -3194,6 +3201,11 @@ window.saveNewBill = (printAfter=false) => {
         const previous=s.bills.find(b=>b.reviewRequest===request);
         if(previous)return previous;
         const b={...d,id:nextId(s.bills,'RADS-',3),reviewRequest:request,advance:0,bankPaid:0,payments:[],balance:d.total,status:'Pending'};
+        if(d.items.some(isPlate)){
+          b.plateOrder={stage:'pending'};
+          if(String(d.plateHours??'').trim())b.plateOrder.dueAt=plateDue(d.plateHours);
+        }
+        delete b.plateHours;
         if(d.paid)receiveMoney(b,d.paid,d.payMethod,d.floor,d.date,d.cashier,request);
         if(d.createJob){
           s.jobs ||= [];
@@ -3565,7 +3577,7 @@ function pettyMarkup(){
     ${rows.length?'':'<p class="text-xs text-gray-500">අත්තිකාරම් සටහන් නැහැ.</p>'}</section>`;
 }
 
-const RADS_RELEASE = 'Smart Cashier, ඉක්මන් ගෙවීම් සහ Customer History';
+const RADS_RELEASE = 'Yard Stock, තොග ලැබීම් සහ Section වෙත නිකුත් කිරීම්';
 let salesFilter={query:'',from:'',to:'',plate:false};
 function vehicleParts(value) {
   const match=String(value||'').toUpperCase().match(/^(?:([A-Z]{1,2})-)?([A-Z]{0,3})\s*([0-9]{0,4})$/);
@@ -3644,8 +3656,8 @@ function bindSalesReport(){
 }
 window.radsOpenPlates=()=>{
   if(!isBillingRole())return;
-  salesFilter={query:'',from:'',to:'',plate:true};
-  setPage('sales');
+  plateTab='all';
+  setPage('plates');
 };
 function renderAppGuide() {
   const sections=[
@@ -3674,7 +3686,7 @@ window.radsSetJobStep=async (id,key,done)=>{
   try{
     await commitUpdate('Job step updated',(state,person)=>{
       const job=state.jobs.find(j=>j.id===id);
-      if(!job||!Object.hasOwn(job.steps,key))throw Error('Job එක හමු වුණේ නැහැ.');
+      if(!job||job.deletedAt||!Object.hasOwn(job.steps,key))throw Error('Job එක හමු වුණේ නැහැ.');
       if(!isManagerOrCashier(person)&&!jobBelongsTo(job,person))throw Error('මෙම Job එක වෙනස් කිරීමට අවසර නැහැ.');
       job.steps[key]=done;
     });
@@ -3774,6 +3786,182 @@ function smartCashierMarkup(){
     <div data-cash-results class="mt-2" aria-live="polite"></div></div></section>`;
 }
 
+const plateStages={pending:'හදන්න තියෙනවා',ready:'හදලා ඉවරයි',delivered:'භාර දීලා'};
+const plateBills=state=>(state.bills||[]).filter(b=>b.status!=='Void'&&b.items?.some(isPlate));
+const plateStage=b=>b.plateOrder?.stage||'pending';
+const plateOverdue=(b,now=Date.now())=>plateStage(b)==='pending'&&Number.isFinite(b.plateOrder?.dueAt)&&b.plateOrder.dueAt<=now;
+function plateDue(hours,now=Date.now()){
+  const duration=Number(hours);
+  if(!Number.isFinite(duration)||duration<=0||duration>8760)throw Error('භාරදීමට පැය 0ට වැඩි, 8,760ට නොවැඩි ගණනක් ඇතුළත් කරන්න.');
+  return now+Math.round(duration*3600000);
+}
+const plateTime=value=>Number.isFinite(value)?new Intl.DateTimeFormat('en-LK',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Colombo'}).format(value):'—';
+window.radsPlateChange=async (id,action)=>{
+  if(!isBillingRole()||busyCounter)return;
+  try{
+    let dueAt;
+    if(action==='due'){
+      const raw=prompt('දැන් සිට භාරදීමට පැය කීයක්ද? (උදා: 0.5 = මිනිත්තු 30)');
+      if(raw===null)return;
+      dueAt=plateDue(raw);
+    }
+    if(action==='delivered'&&!confirm('වාහන අංක තහඩුව පාරිභෝගිකයාට භාර දුන්නාද?'))return;
+    await commitUpdate('Number Plate '+action,(state,person)=>{
+      if(!isManagerOrCashier(person))throw Error('මෙම වෙනසට අවසර නැහැ.');
+      const bill=plateBills(state).find(b=>b.id===id);
+      if(!bill)throw Error('Number Plate බිල හමු වුණේ නැහැ.');
+      const stage=plateStage(bill);
+      const allowed=stage==='pending'?['due','ready']:stage==='ready'?['delivered']:[];
+      if(!allowed.includes(action))throw Error('ඇණවුමේ තත්ත්වය වෙනස් වී තිබෙනවා.');
+      bill.plateOrder||={stage};
+      if(action==='due'){bill.plateOrder.dueAt=dueAt;return;}
+      Object.assign(bill.plateOrder,{stage:action,[action+'At']:Date.now(),[action+'By']:person.id});
+    });
+  }catch(err){alert(err.message);}
+};
+let plateTab='all';
+window.radsPlateTab=tab=>{
+  if(!isBillingRole())return;
+  plateTab=tab;
+  render();
+};
+window.radsPlateRevenue=()=>{
+  if(!isBillingRole())return;
+  salesFilter={query:'',from:'',to:'',plate:true};
+  setPage('sales');
+};
+function renderPlateOrders(){
+  const bills=plateBills(cloudData);
+  const income=salesSummary(cloudData,{query:'',from:todayISO(),to:todayISO(),plate:true});
+  const tabs=[['all','සියල්ල'],...Object.entries(plateStages)];
+  const rows=plateTab==='all'?bills:bills.filter(b=>plateStage(b)===plateTab);
+  return `<section class="max-w-6xl mx-auto p-4 space-y-4"><div class="bg-white border rounded-xl p-4">
+    <h2 class="font-black text-xl">Number Plate ඇණවුම්</h2>
+    <p>අද ලැබීම් · <strong>Rs. ${currency(income.cash+income.bank)}</strong> · Cash Rs. ${currency(income.cash)} · Bank Rs. ${currency(income.bank)}</p>
+    <div class="rads-actions"><button type="button" onclick="setPage('newbill');radsBillButton('plate')">+ අලුත් ඇණවුම</button><button type="button" onclick="radsPlateRevenue()">දිනය අනුව ආදායම</button></div>
+    <div class="flex flex-wrap gap-2">${tabs.map(([key,label])=>`<button type="button" class="border rounded px-2 py-1" aria-pressed="${plateTab===key}" onclick="radsPlateTab('${key}')">${label} · ${key==='all'?bills.length:bills.filter(b=>plateStage(b)===key).length}</button>`).join('')}</div></div>
+    ${rows.length?'':'<p>ඇණවුම් නැහැ.</p>'}
+    ${rows.map(b=>`<article class="bg-white border rounded-xl p-3"><strong>${txt(b.vehicle||'—')} · ${txt(b.id)}</strong>
+    <p>${txt(b.customer)} · ${txt(b.custPhone||'—')}</p>
+    <p>${txt(plateStages[plateStage(b)])} · භාරදෙන වේලාව: ${plateTime(b.plateOrder?.dueAt)}</p>
+    ${plateStage(b)==='pending'&&Number.isFinite(b.plateOrder?.dueAt)?`<strong class="text-red-700" data-plate-due="${b.plateOrder.dueAt}" ${plateOverdue(b)?'':'hidden'}>ප්‍රමාදයි · තවම හදලා ඉවර ලෙස සටහන් කර නැහැ</strong>`:''}
+    <p>බිල Rs. ${currency(b.total)} · ලැබුණා Rs. ${currency(b.total-b.balance)} · ඉතිරි Rs. ${currency(b.balance)}</p>
+    <div class="rads-actions" data-plate-bill="${txt(b.id)}">
+    <button type="button" data-plate-action="view">බිල බලන්න</button>
+    ${b.balance>0?'<button type="button" data-plate-action="collect">ඉතිරිය ගන්න</button>':''}
+    ${plateStage(b)==='pending'?'<button type="button" data-plate-action="due">පැය ගණන දාන්න</button><button type="button" data-plate-action="ready">හදලා ඉවරයි</button>':''}
+    ${plateStage(b)==='ready'?'<button type="button" data-plate-action="delivered">භාර දුන්නා</button>':''}</div></article>`).join('')}</section>`;
+}
+function refreshPlateAlerts(){
+  const alertBox=document.getElementById('rads-plate-alert');
+  if(!alertBox)return;
+  const now=Date.now(),count=plateBills(cloudData).filter(b=>plateOverdue(b,now)).length;
+  alertBox.hidden=!count;
+  alertBox.textContent=count?`⚠ Number Plate ඇණවුම් ${count}ක් ප්‍රමාදයි · බලන්න`:'';
+  document.querySelectorAll('[data-plate-due]').forEach(el=>{el.hidden=Number(el.dataset.plateDue)>now;});
+}
+window.radsDeleteJob=async id=>{
+  if(!isBossOrFamily(ui.user)||!confirm('Job '+id+' ඉවත් කරන්නද?'))return;
+  const reason=prompt('Job එක ඉවත් කරන හේතුව')?.trim();
+  if(!reason)return;
+  try{
+    await commitUpdate('Job deleted '+id,(state,person)=>{
+      if(!isBossOrFamily(person))throw Error('Boss access අවශ්‍යයි.');
+      const job=state.jobs.find(j=>j.id===id&&!j.deletedAt);
+      if(!job)throw Error('Job එක හමු වුණේ නැහැ.');
+      Object.assign(job,{deletedAt:new Date().toISOString(),deletedBy:person.id,deleteReason:reason});
+    });
+  }catch(err){alert(err.message);}
+};
+
+const YARD_CATEGORIES=['G.I. බට','Wire','Tube Light','Thinner','තීන්ත','වෙනත්'];
+const YARD_UNITS=['බට','rolls','pcs','ලීටර්','ටින්','kg','මීටර්'];
+const canEditYard=user=>Boolean(user&&!user.disabled&&(isBossOrFamily(user)||['Yard Job','Yard','Management'].includes(user.role)));
+const yardNumber=value=>new Intl.NumberFormat('en-LK',{maximumFractionDigits:3}).format(value);
+function yardQuantity(raw,allowZero=false){
+  if(!/^\d+(?:\.\d{1,3})?$/.test(String(raw).trim()))throw Error('වලංගු ප්‍රමාණයක් දාන්න.');
+  const quantity=Number(raw);
+  if(!Number.isFinite(quantity)||quantity>100000000||(!allowZero&&quantity===0))throw Error('වලංගු ප්‍රමාණයක් දාන්න.');
+  return quantity;
+}
+function yardBalance(quantity,change,direction){
+  const balance=Math.round((quantity+(direction==='in'?change:-change))*1000)/1000;
+  if(balance<0)throw Error('නිකුත් කිරීමට ප්‍රමාණවත් තොග නැහැ.');
+  if(!Number.isFinite(balance)||balance>100000000)throw Error('තොග ප්‍රමාණය වලංගු නැහැ.');
+  return balance;
+}
+const yardLow=state=>(state.yardStock||[]).filter(item=>item.quantity<=item.lowAt);
+function renderYardStock(){
+  const items=cloudData.yardStock||[],low=yardLow(cloudData);
+  const movements=cloudData.yardMovements||[];
+  return `<section class="max-w-6xl mx-auto p-4 space-y-4">
+    <div class="rounded-2xl bg-slate-800 text-white p-5"><h2 class="text-2xl font-black">Yard Stock</h2>
+    <p class="mt-2">තොග වර්ග <strong>${items.length}</strong> · අඩු තොග <strong>${low.length}</strong></p>
+    ${canEditYard(ui.user)?'<button type="button" onclick="radsYardForm()" class="mt-3 bg-white text-slate-800 font-bold rounded px-3 py-2">+ අලුත් තොග වර්ගයක්</button>':''}</div>
+    <div class="bg-white rounded-xl border p-4"><h3 class="font-black">අඩු තොග</h3>
+    <p>${low.map(i=>`${txt(i.name)} · ${yardNumber(i.quantity)} ${txt(i.unit)}`).join(' | ')||'අඩු තොග නැහැ.'}</p></div>
+    <div class="bg-white rounded-xl border p-4 overflow-auto"><table class="w-full text-left text-sm">
+    <thead><tr><th>ද්‍රව්‍යය / වර්ග අංකය</th><th>කාණ්ඩය</th><th>ඉතිරි ප්‍රමාණය</th><th>අවම තොගය</th><th>ක්‍රියාව</th></tr></thead>
+    <tbody>${items.map(i=>`<tr class="border-t"><td class="py-2 font-bold">${txt(i.name)}${i.code?' · '+txt(i.code):''}</td><td>${txt(i.category)}</td>
+    <td class="${i.quantity<=i.lowAt?'text-red-700 font-bold':'font-bold'}">${yardNumber(i.quantity)} ${txt(i.unit)}</td><td>${yardNumber(i.lowAt)}</td>
+    <td>${canEditYard(ui.user)?`<button type="button" class="underline mr-3" data-yard-id="${txt(i.id)}" data-yard-mode="in">+ ලැබුණා</button>
+    <button type="button" class="underline" data-yard-id="${txt(i.id)}" data-yard-mode="out">− නිකුත් කළා</button>`:''}</td></tr>`).join('')}</tbody></table>
+    ${items.length?'':'<p class="mt-2">Yard Stock ද්‍රව්‍ය තවම එකතු කර නැහැ.</p>'}</div>
+    <div class="bg-white rounded-xl border p-4"><h3 class="font-black">මෑත තොග ගනුදෙනු</h3>
+    ${movements.slice(0,30).map(m=>`<div class="border-t py-2 text-sm"><strong>${txt(m.name)}</strong> · ${m.direction==='out'?'නිකුත් කළා':'ලැබුණා'} ${yardNumber(m.amount)} ${txt(m.unit)} · ඉතිරි ${yardNumber(m.balance)}<br>
+    <small>${plateTime(m.at)} · සටහන් කළේ ${txt(m.by)}${m.to?' · භාරගත් පාර්ශ්වය '+txt(m.to):''}${m.note?' · '+txt(m.note):''}</small></div>`).join('')||'<p>ගනුදෙනු සටහන් නැහැ.</p>'}</div></section>`;
+}
+window.radsYardForm=(id='',direction='')=>{
+  if(!canEditYard(ui.user)||busyCounter)return;
+  const item=id?cloudData.yardStock?.find(i=>i.id===id):null;
+  if(id&&(!item||!['in','out'].includes(direction)))return;
+  savedReceipt=null;
+  review.innerHTML=`<h2>${item?txt(item.name)+' · '+(direction==='out'?'නිකුත් කරන්න':'ලැබුණු තොගය'):'අලුත් Yard Stock වර්ගය'}</h2>
+    <form class="rads-smart-find" data-yard-form>${item?`<p>දැනට ඉතිරි: ${yardNumber(item.quantity)} ${txt(item.unit)}</p>`:`
+    <label>ද්‍රව්‍යයේ නම<input name="name" maxlength="80" placeholder="G.I. බට" required></label>
+    <label>වර්ගය / අංකය<input name="code" maxlength="30" placeholder="09"></label>
+    <label>කාණ්ඩය<select name="category">${YARD_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select></label>
+    <label>ඒකකය<select name="unit">${YARD_UNITS.map(u=>`<option>${u}</option>`).join('')}</select></label>
+    <label>අඩු තොග සීමාව<input type="number" name="lowAt" min="0" step="0.001" value="0" required></label>`}
+    <label>${item?'ප්‍රමාණය':'ආරම්භක තොගය'}<input name="quantity" type="number" min="${item?'0.001':'0'}" step="0.001" inputmode="decimal" required></label>
+    ${direction==='out'?'<label>භාරගත් Section / කෙනා<input name="to" maxlength="80" required></label>':''}
+    <label>සටහන<input name="note" maxlength="160" placeholder="Job අංකය හෝ හේතුව"></label>
+    <p data-yard-error role="alert" class="text-red-700"></p>
+    <button type="submit" class="rads-cash-primary">Save කරන්න</button><button type="button" data-yard-close>වසන්න</button></form>`;
+  const form=review.querySelector('[data-yard-form]');
+  form.querySelector('[data-yard-close]').onclick=()=>{if(!busyCounter)review.close();};
+  const request=uuid();
+  form.onsubmit=async event=>{
+    event.preventDefault();
+    if(busyCounter)return;
+    const values=Object.fromEntries(new FormData(form)),submit=form.querySelector('[type=submit]');
+    submit.disabled=true;
+    try{
+      const quantity=yardQuantity(values.quantity,!item),name=values.name?.trim(),code=values.code?.trim()||'',to=values.to?.trim()||'';
+      if(!item&&!name)throw Error('ද්‍රව්‍යයේ නම දාන්න.');
+      if(direction==='out'&&!to)throw Error('භාරගත් Section එක හෝ කෙනා සඳහන් කරන්න.');
+      await commitUpdate('Yard Stock '+(direction||'new'),(state,person)=>{
+        if(!canEditYard(person))throw Error('තොග වෙනස් කිරීමට අවසර නැහැ.');
+        const stock=state.yardStock||=[],moves=state.yardMovements||=[];
+        if(moves.some(m=>m.id===request)||stock.some(i=>i.id===request))return;
+        let record;
+        if(item){
+          record=stock.find(i=>i.id===id);
+          if(!record)throw Error('ද්‍රව්‍යය හමු වුණේ නැහැ.');
+          record.quantity=yardBalance(record.quantity,quantity,direction);
+        }else{
+          if(stock.some(i=>i.name.toLowerCase()===name.toLowerCase()&&i.code.toLowerCase()===code.toLowerCase()))throw Error('මේ නම සහ වර්ග අංකය දැනටමත් තිබෙනවා.');
+          record={id:request,name,code,category:values.category,unit:values.unit,quantity,lowAt:yardQuantity(values.lowAt,true)};
+          stock.push(record);
+        }
+        if(quantity>0)moves.unshift({id:request,itemId:record.id,name:[record.name,record.code].filter(Boolean).join(' '),direction:direction||'in',amount:quantity,balance:record.quantity,unit:record.unit,to,note:values.note.trim(),by:person.name,at:Date.now()});
+      });
+      review.close();
+    }catch(err){form.querySelector('[data-yard-error]').textContent=err.message;submit.disabled=false;}
+  };
+  if(!review.open)review.showModal();
+};
+
 const oldRender = render;
 render = function(){
   oldRender();
@@ -3789,6 +3977,23 @@ render = function(){
     if(main)main.prepend(panel);else appRoot.append(panel);
   }
   main?.insertAdjacentHTML('afterbegin',`<div class="mx-3 mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm" role="status"><strong>අලුත් Update</strong> · ${RADS_RELEASE} <button type="button" onclick="setPage('guide')" class="underline font-bold">භාවිතය බලන්න</button></div>`);
+  if(isBillingRole()&&main){
+    main.insertAdjacentHTML('afterbegin','<button type="button" id="rads-plate-alert" hidden class="m-3 rounded bg-red-100 text-red-900 p-2 font-bold"></button>');
+    document.getElementById('rads-plate-alert').onclick=radsOpenPlates;
+    main.querySelectorAll('[data-plate-action]').forEach(button=>{button.onclick=()=>{
+      const id=button.closest('[data-plate-bill]').dataset.plateBill,action=button.dataset.plateAction;
+      if(action==='view')return radsShowBill(id);
+      if(action==='collect')return collectPayment(id);
+      radsPlateChange(id,action);
+    };});
+    refreshPlateAlerts();
+  }
+  if(ui.page==='yard'){
+    main?.querySelectorAll('[data-yard-id]').forEach(button=>{button.onclick=()=>radsYardForm(button.dataset.yardId,button.dataset.yardMode);});
+  }
+  if(ui.page==='dashboard'){
+    main?.insertAdjacentHTML('afterbegin',`<div class="mx-3 mt-3 p-3 bg-white border rounded-xl"><button type="button" class="font-bold underline" onclick="setPage('yard')">Yard Stock</button> · ${(cloudData.yardStock||[]).length} වර්ග · අඩු තොග ${yardLow(cloudData).length}</div>`);
+  }
   if(ui.page==='sales')bindSalesReport();
   if(isBillingRole()&&!ui.tvMode){
     const quick=document.createElement('button');
@@ -3819,9 +4024,11 @@ render = function(){
       ${plate?`<div class="grid grid-cols-2 sm:grid-cols-4 gap-2"><label>පළාත් කේතය<input id="rads-plate-province" maxlength="2" autocapitalize="characters" placeholder="NC" value="${txt(vehicle.province)}"></label>
       <label>අකුරු 2–3<input id="rads-plate-prefix" maxlength="3" autocapitalize="characters" placeholder="AWB" value="${txt(vehicle.prefix)}"></label>
       <label>අංක 4<input id="rads-plate-number" maxlength="4" inputmode="numeric" placeholder="2020" value="${txt(vehicle.number)}"></label>
-      <label>Plate මිල (Rs.)<input id="rads-plate-price" type="number" min="0.01" step="0.01" value="${plate.price||''}"></label></div>`:''}<label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>`;
+      <label>Plate මිල (Rs.)<input id="rads-plate-price" type="number" min="0.01" step="0.01" value="${plate.price||''}"></label>
+      <label>භාරදීමට පැය<input id="rads-plate-hours" type="number" min="0.01" max="8760" step="0.01" value="${txt(d.plateHours)}" placeholder="උදා: 2"></label></div>`:''}<label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>`;
       for(const [id,key] of [['rads-branch','branch'],['rads-title','title']])document.getElementById(id).oninput=e=>{d[key]=e.target.value;};
       if(plate){
+        document.getElementById('rads-plate-hours').oninput=e=>{d.plateHours=e.target.value;};
         const province=document.getElementById('rads-plate-province');
         const prefix=document.getElementById('rads-plate-prefix'), number=document.getElementById('rads-plate-number'), price=document.getElementById('rads-plate-price');
         const updateVehicle=()=>{
@@ -3851,7 +4058,7 @@ window.render = render;
     render();
     dashboardDate=date;
   }
-  window.setInterval(()=>{refreshDashboardDate();refreshTuesdayReminder();},15000);
+  window.setInterval(()=>{refreshDashboardDate();refreshTuesdayReminder();refreshPlateAlerts();},15000);
   window.addEventListener('pageshow',refreshDashboardDate);
   document.addEventListener('visibilitychange',()=>{
     if(!document.hidden)refreshDashboardDate();
