@@ -164,7 +164,11 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  const stateDocRef = doc(db, "rads_agency", "main_state_v4_final");
+  const previousStateRef = doc(db, "rads_agency", "main_state_v4_final");
+  const stateDocRef = doc(db, "rads_agency", "main_state_2026_11_23");
+  const startDate = "2026-11-23";
+  let initializingState = false;
+  let cloudStartError = '';
 
   function getBrandLogoSVG(size = 54) { return '<img alt="Roshan Advertising" class="shrink-0 rounded" width="'+size+'" height="'+size+'" src="data:image/jpeg;base64,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">'; 
   }
@@ -259,40 +263,13 @@
 
   const INITIAL_STAFF = [];
 
-  const INITIAL_BILLS = [
-    { id: 'RADS-001', date: '2026-11-21', customer: 'Temple', custPhone: '', cashier: 'Apsara', floor: 'Ground', payMethod: 'Cash', items: [{ name: 'Flex (6 Pass) 6x3', qty: 1, price: 3960 }], serviceCharge: 0, serviceNote: '', total: 3960, advance: 0, balance: 3960, status: 'Pending' },
-    { id: 'RADS-002', date: '2026-11-21', customer: 'Perakumpura Temple', custPhone: '', cashier: 'Apsara', floor: 'Ground', payMethod: 'Cash', items: [{ name: 'Flex Board Double Side 4x6', qty: 1, price: 24700 }], serviceCharge: 3000, serviceNote: 'Fixing & Pole', total: 27700, advance: 0, balance: 27700, status: 'Balance Due' },
-    { id: 'RADS-003', date: '2026-11-21', customer: '-', custPhone: '', cashier: 'Apsara', floor: 'Ground', payMethod: 'Cash', items: [{ name: 'Flex (6 Pass) 3x5', qty: 1, price: 3300 }], serviceCharge: 0, serviceNote: '', total: 3300, advance: 3300, balance: 0, status: 'FULL PAID' }
-  ];
 
-  const INITIAL_JOBS = [
-    { id: '0001', billNo: 'RADS-001', name: 'Kelani - Matara', cat: 'Branding', urgent: true, date: '2026-11-20', finish: '2026-11-26', giver: '071555555 / supun', designer: 'Nimantha', constructor: 'Sithum', amount: 45000, bankPaid: 0, steps: { Mashimant: true, Quotation: true, JobStart: false, DesignerSelect: true, ArtworkOk: true, Print: false, Constructor: false, WorkStart: false, JobComplete: false, Invoice: false, Payment: false } },
-    { id: '0002', billNo: 'RADS-002', name: 'Vavuniya Area Shop - Magic', cat: 'Branding', urgent: false, date: '2026-11-20', finish: '2026-11-27', giver: 'Vavuniya', designer: 'Hashith', constructor: '-', amount: 65000, bankPaid: 20000, steps: { Mashimant: true, Quotation: true, JobStart: true, DesignerSelect: true, ArtworkOk: false, Print: false, Constructor: false, WorkStart: false, JobComplete: false, Invoice: false, Payment: false } }
-  ];
 
-  const INITIAL_STOCK = [
-    { id: 1, cat: 'Flex', name: '6 Feet Light Board', unit: 'Roll', bought: 5, used: 0 },
-    { id: 2, cat: 'Flex', name: '2 Feet Light Board', unit: 'Roll', bought: 5, used: 0 },
-    { id: 3, cat: 'Flex', name: '4 Feet Light Board', unit: 'Roll', bought: 5, used: 0 },
-    { id: 4, cat: 'Flex', name: '2 Feet Flex', unit: 'Roll', bought: 5, used: 0 },
-    { id: 5, cat: 'Flex', name: '5 Feet Flex', unit: 'Roll', bought: 5, used: 0 },
-    { id: 6, cat: 'Sticker', name: '4 Feet One Way Vision', unit: 'Roll', bought: 3, used: 0 },
-    { id: 7, cat: 'Sticker', name: '4 Feet Mat Sticker SG', unit: 'Roll', bought: 3, used: 0 },
-    { id: 8, cat: 'Sticker', name: '3 Feet PVC Sticker', unit: 'Roll', bought: 4, used: 0 },
-    { id: 9, cat: 'Sticker', name: '2 Feet PVC Sticker', unit: 'Roll', bought: 4, used: 0 },
-    { id: 10, cat: 'Sticker', name: '4 Feet Clear Sticker', unit: 'Roll', bought: 2, used: 0 },
-    { id: 11, cat: 'Sticker', name: 'Diamond Cut Sticker', unit: 'Roll', bought: 2, used: 0 },
-    { id: 12, cat: 'Sticker', name: '4 Feet PVC Sticker', unit: 'Roll', bought: 4, used: 0 },
-    { id: 13, cat: 'Ink - Thintha', name: 'C-Cyan', unit: 'Bottle', bought: 4, used: 0 },
-    { id: 14, cat: 'Ink - Thintha', name: 'M-Magenta', unit: 'Bottle', bought: 4, used: 0 },
-    { id: 15, cat: 'Ink - Thintha', name: 'Y-Yellow', unit: 'Bottle', bought: 4, used: 0 },
-    { id: 16, cat: 'Ink - Thintha', name: 'K-Black', unit: 'Bottle', bought: 4, used: 0 }
-  ];
 
-  const INITIAL_EXTRA = [
-    { id: 1, date: '2026-11-21', person: 'Sithum', reason: 'Kossa / Hadunkuru', amount: 920, floor: 'Upper', by: 'Apsara PC04' },
-    { id: 2, date: '2026-11-21', person: 'Shehan', reason: 'Lorry', amount: 500, floor: 'Upper', by: 'Apsara PC04' }
-  ];
+
+
+
+
 
   const POSITIVE_QUOTES = [
     "✨ අද දවස ඔබේ නිර්මාණශීලීත්වයෙන් තවත් ලස්සන කරන්න! (Make today shine with your creativity!)",
@@ -317,7 +294,7 @@
     lastPrintCount: -1,
     coins: { c5000: 0, c2000: 0, c1000: 0, c500: 0, c100: 0, c50: 0, c20: 0, c10: 0, c5: 0 },
     draftPrint: {
-      jobId: '0001',
+      jobId: '',
       filePath: '\\\\PC10\\D\\Jobs\\',
       items: [{ fileName: '', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }]
     },
@@ -325,10 +302,10 @@
       customer: '',
       custPhone: '',
       date: '',
-      cashier: 'Apsara',
+      cashier: '',
       floor: 'Ground',
       payMethod: 'Cash',
-      items: [{ baseName: 'Flex (6 Pass)', w: 2, h: 3, rate: 250, manualRate: false, name: 'Flex (6 Pass) 2x3', qty: 1, price: 1500 }],
+      items: [{ baseName: '', w: '', h: '', rate: '', manualRate: false, name: '', qty: 1, price: 0 }],
       pending: false,
       serviceCharge: 0,
       serviceNote: '',
@@ -337,40 +314,28 @@
     draftQuote: {
       customer: '',
       custPhone: '',
-      items: [{ baseName: 'Flex (6 Pass)', w: 4, h: 6, rate: 220, manualRate: false, name: 'Flex (6 Pass) 4x6', qty: 1, price: 5280 }]
+      items: [{ baseName: '', w: '', h: '', rate: '', manualRate: false, name: '', qty: 1, price: 0 }],
     },
     fpRecords: []
   };
 
-  let cloudData = {
-    staff: INITIAL_STAFF,
-    bills: INITIAL_BILLS,
-    jobs: INITIAL_JOBS,
-    stock: INITIAL_STOCK,
-    extraWorks: INITIAL_EXTRA,
-    rates: RATE_CARD_ITEMS,
-    printQueue: [
-      { id: 'PQ-01', jobId: '0001', designer: 'Nimantha', filePath: '\\\\PC10\\D\\Jobs\\Kelani_Matara', items: [{ fileName: 'Kelani_Banner.tif', material: 'Flex', size: '3x2', pass: '6 Pass', copies: 1 }], status: 'Pending Print', time: '10:30' }
-    ],
-    bookings: [
-      { id: 1, type: 'Vehicle Sticker Bay', title: 'CAB-4582 (Full Body Wrap)', date: '2026-11-22', time: '09:30 AM', status: 'Confirmed' },
-      { id: 2, type: 'Interior Washing', title: 'KDH Van Interior Detailing', date: '2026-11-22', time: '02:00 PM', status: 'Confirmed' }
-    ],
-    clientsDir: [
-      { name: 'Perakumpura Temple', phone: '+94 77 123 4567', addr: 'Medirigiriya', jobsCount: 5 },
-      { name: 'Kelani - Matara', phone: '+94 71 555 5555', addr: 'Matara / Medirigiriya', jobsCount: 3 }
-    ],
-    bankTransfers: [],
-    teaPurse: 1100,
-    pendingTeaDeduction: 0,
-    teaTransfers: [],
-    leaveRequests: [],
-    teamMessages: [],
-    shiftTransfers: [],
-    auditLogs: [],
-    remindersDone: {},
-    sixMonthSummary: { halfYearIncome: 0, halfYearExpenses: 0, lastResetDate: '2026-07-01' }
-  };
+  function freshRadsState(previous={}) {
+    const staff=(previous.staff||INITIAL_STAFF).map(person=>{
+      const fresh={...person,advance:0,teaEarned:0,teaTaken:0,leaves:0,presentToday:false};
+      delete fresh.lastMarkedDate;
+      return fresh;
+    });
+    return {
+      staff, startDate,
+      rates:previous.rates||RATE_CARD_ITEMS,
+      bills:[],jobs:[],stock:[],yardStock:[],yardMovements:[],extraWorks:[],
+      printQueue:[],bookings:[],clientsDir:[],bankTransfers:[],pettyAdvances:[],
+      teaPurse:0,pendingTeaDeduction:0,teaTransfers:[],leaveRequests:[],teamMessages:[],
+      shiftTransfers:[],auditLogs:[],remindersDone:{},
+      sixMonthSummary:{halfYearIncome:0,halfYearExpenses:0,lastResetDate:startDate}
+    };
+  }
+  let cloudData=freshRadsState();
 
   function getColomboNow() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' }));
@@ -388,7 +353,7 @@
     render();
   }, 2400);
 
-  onSnapshot(stateDocRef, async (snap) => {
+  onSnapshot(stateDocRef,{includeMetadataChanges:true},async (snap) => {
     if (snap.exists()) {
       const incoming = snap.data();
       if (ui.lastPrintCount !== -1 && incoming.printQueue) {
@@ -411,11 +376,24 @@
         if (updatedMe && !updatedMe.disabled) ui.user = updatedMe; else { ui.user=null; sessionStorage.removeItem('rads_logged_user'); }
       }
       ui.cloudSynced = true;
+      cloudStartError='';
       render();
     } else {
-      ui.cloudSynced = false; render();
+      ui.cloudSynced=false;
+      if(snap.metadata.fromCache||initializingState)return;
+      initializingState=true;
+      try{
+        await runTransaction(db,async transaction=>{
+          const current=await transaction.get(stateDocRef);
+          if(current.exists())return;
+          const previous=await transaction.get(previousStateRef);
+          if(!previous.exists())throw Error('පරණ සේවක ගිණුම් හමු වුණේ නැහැ.');
+          transaction.set(stateDocRef,freshRadsState(previous.data()));
+        });
+      }catch(err){cloudStartError=err.message;render();}
+      finally{initializingState=false;}
     }
-  });
+  },err=>{cloudStartError=err.message;render();});
 
   async function saveCloud(auditAction = null) {
     if (auditAction && ui.user) {
@@ -2631,7 +2609,7 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     return `
       <div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4">
         <h2 class="font-black text-base mb-1">📦 WAREHOUSE STOCK (Manual Mark Only — 1-Roll Low Stock Alert)</h2>
-        ${isManagerOrCashier(ui.user)?`<button onclick="radsStockChange(-1,'new')">+ New Stock Item</button>`:""}<p class="text-xs text-gray-500 mb-3">තීන්ත බෝතලයක් හෝ රෝලක් ගත් විගස "- Use 1" Mark කරන්න. ඉතුරු 1ක් වූ විගස Alert එකක් එයි.</p>
+        ${canUpdateStock(ui.user)?`<button onclick="radsStockChange(-1,'new')">+ New Stock Item</button>`:""}<p class="text-xs text-gray-500 mb-3">තීන්ත බෝතලයක් හෝ රෝලක් ගත් විගස "- Use 1" Mark කරන්න. ඉතුරු 1ක් වූ විගස Alert එකක් එයි.</p>
         <div class="overflow-x-auto">
           <table class="w-full text-xs text-left">
             <thead class="bg-gray-100 font-black"><tr><th class="p-2">Category</th><th class="p-2">Material</th><th class="p-2">Added</th><th class="p-2">Used</th><th class="p-2">Remaining</th><th class="p-2">Actions</th></tr></thead>
@@ -2649,7 +2627,7 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
                     <td class="p-2 flex gap-1.5">
                       <button onclick="updateStockItem(${i}, 1)" class="bg-emerald-600 text-white px-2.5 py-1 rounded font-bold">+ Add Stock</button>
                       <button onclick="updateStockItem(${i}, -1)" class="bg-[#E31E24] text-white px-2.5 py-1 rounded font-bold">− භාවිතය</button>
-                      ${isManagerOrCashier(ui.user)?`<button onclick="radsStockChange(${i},'adjust')">Adjust</button><button onclick="radsStockChange(${i},'archive')">Archive</button>`:""}
+                      ${canUpdateStock(ui.user)?`<button onclick="radsStockChange(${i},'adjust')">Adjust</button>${isBossOrFamily(ui.user)?`<button onclick="radsStockChange(${i},'archive')">Archive</button>`: ''}`:""}
                     </td>
                   </tr>
                 `;
@@ -2977,6 +2955,12 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     }
     if (!ui.user) {
       appEl.innerHTML = renderLogin();
+      if(cloudStartError){
+        const message=document.createElement('p');
+        message.className='p-4 bg-red-100 text-red-900';
+        message.textContent='අලුත් දත්ත විවෘත කළ නොහැක. '+cloudStartError;
+        appEl.prepend(message);
+      }
       return;
     }
     if (ui.tvMode && isBossOrFamily(ui.user)) {
@@ -3423,7 +3407,7 @@ window.radsFindPhone = raw => {
   }
 };
 window.radsStockChange = async (index,mode) => {
-  if(!isBillingRole())return;
+  if(!canUpdateStock(ui.user)||(mode==='archive'&&!isBossOrFamily(ui.user)))return;
   const cached=cloudData.stock[index],itemId=cached?.id;
   if(mode!=='new'&&!cached)return;
   const name=mode==='new'?prompt('අලුත් stock item නම')?.trim():cached.name;
@@ -3435,7 +3419,7 @@ window.radsStockChange = async (index,mode) => {
   const reason=prompt('හේතුව')?.trim()||'—';
   try{
     await commitUpdate('Stock '+mode,(s,p)=>{
-      if(!isManagerOrCashier(p))throw Error('Stock access අවශ්‍යයි.');
+      if(!canUpdateStock(p)||(mode==='archive'&&!isBossOrFamily(p)))throw Error('Stock access අවශ්‍යයි.');
       if(mode==='new'){s.stock.push({id:uuid(),cat:'General',name,unit:'Each',bought:qty,used:0});return;}
       const st=s.stock.find(x=>x.id===itemId&&!x.archived);
       if(!st)throw Error('Item එක හමු වුණේ නැහැ.');
@@ -3577,7 +3561,7 @@ function pettyMarkup(){
     ${rows.length?'':'<p class="text-xs text-gray-500">අත්තිකාරම් සටහන් නැහැ.</p>'}</section>`;
 }
 
-const RADS_RELEASE = 'Yard Stock, තොග ලැබීම් සහ Section වෙත නිකුත් කිරීම්';
+const RADS_RELEASE = '2026-11-23 සිට අලුත් ශේෂ සහ සියලු සේවකයන්ට Stock updates';
 let salesFilter={query:'',from:'',to:'',plate:false};
 function vehicleParts(value) {
   const match=String(value||'').toUpperCase().match(/^(?:([A-Z]{1,2})-)?([A-Z]{0,3})\s*([0-9]{0,4})$/);
@@ -3876,7 +3860,7 @@ window.radsDeleteJob=async id=>{
 
 const YARD_CATEGORIES=['G.I. බට','Wire','Tube Light','Thinner','තීන්ත','වෙනත්'];
 const YARD_UNITS=['බට','rolls','pcs','ලීටර්','ටින්','kg','මීටර්'];
-const canEditYard=user=>Boolean(user&&!user.disabled&&(isBossOrFamily(user)||['Yard Job','Yard','Management'].includes(user.role)));
+const canUpdateStock=user=>Boolean(user&&!user.disabled);
 const yardNumber=value=>new Intl.NumberFormat('en-LK',{maximumFractionDigits:3}).format(value);
 function yardQuantity(raw,allowZero=false){
   if(!/^\d+(?:\.\d{1,3})?$/.test(String(raw).trim()))throw Error('වලංගු ප්‍රමාණයක් දාන්න.');
@@ -3897,14 +3881,14 @@ function renderYardStock(){
   return `<section class="max-w-6xl mx-auto p-4 space-y-4">
     <div class="rounded-2xl bg-slate-800 text-white p-5"><h2 class="text-2xl font-black">Yard Stock</h2>
     <p class="mt-2">තොග වර්ග <strong>${items.length}</strong> · අඩු තොග <strong>${low.length}</strong></p>
-    ${canEditYard(ui.user)?'<button type="button" onclick="radsYardForm()" class="mt-3 bg-white text-slate-800 font-bold rounded px-3 py-2">+ අලුත් තොග වර්ගයක්</button>':''}</div>
+    ${canUpdateStock(ui.user)?'<button type="button" onclick="radsYardForm()" class="mt-3 bg-white text-slate-800 font-bold rounded px-3 py-2">+ අලුත් තොග වර්ගයක්</button>':''}</div>
     <div class="bg-white rounded-xl border p-4"><h3 class="font-black">අඩු තොග</h3>
     <p>${low.map(i=>`${txt(i.name)} · ${yardNumber(i.quantity)} ${txt(i.unit)}`).join(' | ')||'අඩු තොග නැහැ.'}</p></div>
     <div class="bg-white rounded-xl border p-4 overflow-auto"><table class="w-full text-left text-sm">
     <thead><tr><th>ද්‍රව්‍යය / වර්ග අංකය</th><th>කාණ්ඩය</th><th>ඉතිරි ප්‍රමාණය</th><th>අවම තොගය</th><th>ක්‍රියාව</th></tr></thead>
     <tbody>${items.map(i=>`<tr class="border-t"><td class="py-2 font-bold">${txt(i.name)}${i.code?' · '+txt(i.code):''}</td><td>${txt(i.category)}</td>
     <td class="${i.quantity<=i.lowAt?'text-red-700 font-bold':'font-bold'}">${yardNumber(i.quantity)} ${txt(i.unit)}</td><td>${yardNumber(i.lowAt)}</td>
-    <td>${canEditYard(ui.user)?`<button type="button" class="underline mr-3" data-yard-id="${txt(i.id)}" data-yard-mode="in">+ ලැබුණා</button>
+    <td>${canUpdateStock(ui.user)?`<button type="button" class="underline mr-3" data-yard-id="${txt(i.id)}" data-yard-mode="in">+ ලැබුණා</button>
     <button type="button" class="underline" data-yard-id="${txt(i.id)}" data-yard-mode="out">− නිකුත් කළා</button>`:''}</td></tr>`).join('')}</tbody></table>
     ${items.length?'':'<p class="mt-2">Yard Stock ද්‍රව්‍ය තවම එකතු කර නැහැ.</p>'}</div>
     <div class="bg-white rounded-xl border p-4"><h3 class="font-black">මෑත තොග ගනුදෙනු</h3>
@@ -3912,7 +3896,7 @@ function renderYardStock(){
     <small>${plateTime(m.at)} · සටහන් කළේ ${txt(m.by)}${m.to?' · භාරගත් පාර්ශ්වය '+txt(m.to):''}${m.note?' · '+txt(m.note):''}</small></div>`).join('')||'<p>ගනුදෙනු සටහන් නැහැ.</p>'}</div></section>`;
 }
 window.radsYardForm=(id='',direction='')=>{
-  if(!canEditYard(ui.user)||busyCounter)return;
+  if(!canUpdateStock(ui.user)||busyCounter)return;
   const item=id?cloudData.yardStock?.find(i=>i.id===id):null;
   if(id&&(!item||!['in','out'].includes(direction)))return;
   savedReceipt=null;
@@ -3941,7 +3925,7 @@ window.radsYardForm=(id='',direction='')=>{
       if(!item&&!name)throw Error('ද්‍රව්‍යයේ නම දාන්න.');
       if(direction==='out'&&!to)throw Error('භාරගත් Section එක හෝ කෙනා සඳහන් කරන්න.');
       await commitUpdate('Yard Stock '+(direction||'new'),(state,person)=>{
-        if(!canEditYard(person))throw Error('තොග වෙනස් කිරීමට අවසර නැහැ.');
+        if(!canUpdateStock(person))throw Error('තොග වෙනස් කිරීමට අවසර නැහැ.');
         const stock=state.yardStock||=[],moves=state.yardMovements||=[];
         if(moves.some(m=>m.id===request)||stock.some(i=>i.id===request))return;
         let record;
