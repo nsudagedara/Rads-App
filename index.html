@@ -105,6 +105,17 @@
   </style>
 <style>
 #rads-print-root { display:none }
+.rads-smart-cash{background:#f0f6f4;border:1px solid #bcd3ca;border-radius:20px;padding:clamp(12px,3vw,24px);color:#142923}
+.rads-smart-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.rads-smart-head h2{font-size:1.7rem;font-weight:900}
+.rads-cash-primary{background:#065743;color:white;padding:.55rem .85rem;border-radius:10px;font-weight:700}
+.rads-cash-primary:disabled{opacity:.55}
+.rads-cash-links{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.rads-cash-links button{border:1px solid #bcd3ca;background:white;border-radius:8px;padding:.5rem .7rem}
+.rads-smart-find{display:grid;gap:8px}
+.rads-smart-find h3{font-weight:800}
+.rads-smart-find input:not([type=checkbox]),.rads-smart-find select{display:block;width:100%;padding:.55rem;border:1px solid #94b6aa;border-radius:8px;background:white}
+.rads-smart-find [hidden]{display:none!important}
 .rads-quick-bill { position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));width:64px;height:64px;z-index:45;border-radius:50%;background:#b41327;color:white;font-weight:800;box-shadow:0 5px 16px #0005 }
 @media print { .rads-quick-bill { display:none!important } }
 #rads-bill-review { width:min(95vw,560px); max-height:90dvh; margin:auto; overflow:auto; border:1px solid #ccc; border-radius:16px; padding:16px; background:#fff; color:#111 }
@@ -540,12 +551,12 @@
       });
     });
 
-    if ((day === 2 || day === 4) && hour < 9 && !cloudData.remindersDone[`garbage_${todayStr}`]) {
+    if (day === 4 && hour < 9 && !cloudData.remindersDone[`garbage_${todayStr}`]) {
       alerts.push({
         key: `garbage_${todayStr}`,
         type: 'urgent',
         title: '🚛 නගර සභා කුණු ලොරිය (පෙ.ව. 9:00 ට කලින්!)',
-        msg: 'අද අඟහරුවාදා/බ්‍රහස්පතින්දා! කරුණාකර පෙ.ව. 9:00 ට කලින් කුණු ටික එළියෙන් තියන්න.',
+        msg: 'අද බ්‍රහස්පතින්දා! කරුණාකර පෙ.ව. 9:00 ට කලින් කුණු ටික එළියෙන් තියන්න.',
         waText: '🚛 *RADS REMINDER:* අද කුණු ලොරිය එන දවසයි! කරුණාකර පෙ.ව. 9:00 ට කලින් කුණු ටික එළියෙන් තියන්න.'
       });
     }
@@ -1005,27 +1016,29 @@
   };
 
   window.addNewJob = async () => {
-    const name = document.getElementById('nj_name').value.trim();
-    const billNo = document.getElementById('nj_bill').value.trim().toUpperCase();
-    const cat = document.getElementById('nj_cat').value;
-    const finish = document.getElementById('nj_finish').value;
-    const designer = document.getElementById('nj_designer').value;
-    const urgent = document.getElementById('nj_urgent').checked;
-    if (!name) return alert('Job Name ඇතුළත් කරන්න.');
-
-    const nextId = String(cloudData.jobs.length + 1).padStart(4, '0');
-    const linkedBill = billNo ? cloudData.bills.find(b => b.id.toUpperCase() === billNo) : null;
-    const isPaid = linkedBill ? (linkedBill.balance === 0 && linkedBill.status === 'FULL PAID') : false;
-
-    cloudData.jobs.unshift({
-      id: nextId, billNo: billNo || '', name, cat, urgent, date: getColomboDate(),
-      finish: finish || getColomboDate(), giver: ui.user.name, designer, constructor: '-',
-      amount: linkedBill ? linkedBill.total : 0, bankPaid: 0,
-      steps: { Mashimant: true, Quotation: true, JobStart: true, DesignerSelect: true, ArtworkOk: false, Print: false, Constructor: false, WorkStart: false, JobComplete: false, Invoice: !!linkedBill, Payment: isPaid }
-    });
-
-    await saveCloud(`Added Job #${nextId} (${name}) assigned to ${designer}`);
-    render();
+    if(!isManagerOrCashier(ui.user))return;
+    const name=document.getElementById('nj_name').value.trim();
+    const billNo=document.getElementById('nj_bill').value.trim().toUpperCase();
+    const cat=document.getElementById('nj_cat').value;
+    const finish=document.getElementById('nj_finish').value;
+    const designerId=document.getElementById('nj_designer').value;
+    const urgent=document.getElementById('nj_urgent').checked;
+    if(!name||!designerId)return alert('Job නම සහ Designer තෝරන්න.');
+    try{
+      await commitUpdate('Job assigned',(state,creator)=>{
+        if(!isManagerOrCashier(creator))throw Error('Job එකතු කිරීමට අවසර නැහැ.');
+        const designer=state.staff.find(s=>s.id===designerId&&s.role==='Designer'&&!s.disabled);
+        if(!designer)throw Error('සක්‍රීය Designer තෝරන්න.');
+        const linked=billNo?state.bills.find(b=>b.id.toUpperCase()===billNo&&b.status!=='Void'):null;
+        if(billNo&&!linked)throw Error('බිල් අංකය හමු වුණේ නැහැ.');
+        state.jobs.unshift({
+          id:nextId(state.jobs,'',4),name,billNo,cat,urgent,date:todayISO(),finish:finish||todayISO(),
+          creatorId:creator.id,giver:creator.name,creatorSection:creator.sector||creator.role,
+          designerId,designer:designer.name,constructor:'-',amount:linked?.total||0,bankPaid:0,
+          steps:{Mashimant:true,Quotation:true,JobStart:true,DesignerSelect:true,ArtworkOk:false,Print:false,Constructor:false,WorkStart:false,JobComplete:false,Invoice:!!linked,Payment:linked?.status==='FULL PAID'}
+        });
+      });
+    }catch(error){alert(error.message);}
   };
 
   window.addJobBankTransfer = async (jobIdx) => {
@@ -1442,7 +1455,7 @@
 
   function renderLogin() {
     const q = ui.searchQuery.toLowerCase();
-    const filtered = cloudData.staff.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.role.toLowerCase().includes(q));
+    const filtered = cloudData.staff.filter(s => !s.disabled && [s.name,s.id,s.role].some(value=>String(value||"").toLowerCase().includes(q)));
 
     return `
       <div class="min-h-screen bg-[#111111] text-white p-4">
@@ -1593,7 +1606,7 @@
             </div>
           </div>
           <div class="flex items-center gap-1.5">
-            ${isBossOrFamily(u)?`<button onclick="radsStaff('add')">+ Staff</button><button onclick="radsStaff('edit')">Edit Staff</button><button onclick="radsStaff('toggle')">Active / Inactive</button>`:""}
+            ${isBossOrFamily(u)?`<button onclick="radsStaff('add')">+ Staff</button><button onclick="radsStaff('edit')">Edit Staff</button><button onclick="radsManageStaff()">Staff Remove / Restore</button>`:""}
             <button onclick="setPage('printqueue')" class="bg-amber-500 text-black px-2.5 py-1.5 rounded-lg text-[11px] font-black">
               🖨️ Print (${pendingPrintsCount})
             </button>
@@ -1645,11 +1658,15 @@
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
     const myTeaRem = u.teaEarned - u.teaTaken;
-    const todayTotalIncome = bals.todayCashIncome + bals.todayBankIncome;
+    const todayTotalIncome = fixed(bals.todayCashIncome + bals.todayBankIncome);
+    const totalBankIncome = isBillingRole()?fixed(
+      paymentRows(cloudData).filter(p=>p.method!=='Cash').reduce((sum,p)=>sum+Number(p.amount||0),0)
+      +(cloudData.bankTransfers||[]).reduce((sum,p)=>sum+Number(p.amount||0),0)
+    ):0;
     const todayPettyCash = bals.todayExpenses + bals.todayTeaDeducted;
 
     if (designerMode) {
-      const myActiveJobs = cloudData.jobs.filter(j => !j.steps.JobComplete && j.designer.toLowerCase().includes(u.name.toLowerCase()));
+      const myActiveJobs = cloudData.jobs.filter(j => !j.steps.JobComplete && jobBelongsTo(j,u));
       const myPrintedAlerts = (cloudData.printQueue || []).filter(p => p.designer === u.name && p.status === 'Printed');
 
       return `
@@ -1698,7 +1715,6 @@
             </div>
             ${myActiveJobs.length === 0 ? `<p class="text-xs text-gray-500 py-4 text-center">දැනට ඔබට අවසන් කිරීමට Active Jobs නොමැත.</p>` : ''}
             ${myActiveJobs.map(j => {
-              const realIdx = cloudData.jobs.findIndex(x => x.id === j.id);
               return `
                 <div class="border rounded-xl p-3 ${j.urgent ? 'bg-red-50 border-red-400' : 'bg-gray-50'} space-y-2">
                   <div class="flex justify-between items-center">
@@ -1711,7 +1727,7 @@
                   </div>
                   <div class="flex flex-wrap gap-1.5 pt-1">
                     ${['ArtworkOk', 'Print', 'JobComplete'].map(step => `
-                      <button onclick="cloudData.jobs[${realIdx}].steps['${step}']=!cloudData.jobs[${realIdx}].steps['${step}']; saveCloud('${u.name} updated Job #${j.id} ${step}'); render();"
+                      <button onclick="radsSetJobStep(this.dataset.job,this.dataset.step,this.dataset.done==='true')" data-job="${txt(j.id)}" data-step="${step}" data-done="${!j.steps[step]}"
                         class="px-2.5 py-1 rounded-lg text-xs font-bold border ${j.steps[step] ? 'bg-emerald-600 text-white' : 'bg-white text-gray-800'}">
                         ${j.steps[step] ? '✅' : '⬜'} ${step === 'JobComplete' ? 'Finish Job (අවසන්)' : step}
                       </button>
@@ -1778,13 +1794,13 @@
 
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl">
-              <span class="text-[11px] font-black text-emerald-800 uppercase block">💰 Daily Balance (Cash)</span>
+              <span class="text-[11px] font-black text-emerald-800 uppercase block">💰 අද අතේ මුදල්</span>
               <span class="text-2xl font-black text-emerald-950 mt-0.5 block">Rs. ${bals.Total.toLocaleString()}</span>
               <span class="text-[10px] text-emerald-700 font-bold">Cash in Drawer Today</span>
             </div>
 
             <div class="bg-blue-50 border border-blue-200 p-3.5 rounded-xl">
-              <span class="text-[11px] font-black text-blue-800 uppercase block">📈 Today Income</span>
+              <span class="text-[11px] font-black text-blue-800 uppercase block">📈 අද මුළු ලැබීම් · ${getColomboDate()}</span>
               <span class="text-2xl font-black text-blue-950 mt-0.5 block">Rs. ${todayTotalIncome.toLocaleString()}</span>
               <span class="text-[10px] text-blue-700 font-bold">Cash: Rs.${bals.todayCashIncome.toLocaleString()} | Bank: Rs.${bals.todayBankIncome.toLocaleString()}</span>
             </div>
@@ -1798,7 +1814,23 @@
             <div class="bg-amber-50 border border-amber-200 p-3.5 rounded-xl">
               <span class="text-[11px] font-black text-amber-800 uppercase block">📅 Monthly Income</span>
               <span class="text-2xl font-black text-amber-950 mt-0.5 block">Rs. ${mStats.mIncome.toLocaleString()}</span>
-              <span class="text-[10px] text-amber-800 font-bold">Net Profit: Rs.${mStats.mNet.toLocaleString()}</span>
+              <span class="text-[10px] text-amber-800 font-bold">ලැබීම් අඩු වියදම්: Rs.${mStats.mNet.toLocaleString()}</span>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-emerald-800 block">අද Cashier වෙත ලැබුණු Cash</span>
+              <strong class="text-xl">Rs. ${bals.todayCashIncome.toLocaleString()}</strong>
+            </div>
+            <div class="bg-orange-50 border border-orange-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-orange-800 block">පාරිභෝගික ණය</span>
+              <strong class="text-xl">Rs. ${mStats.totalCustomerDues.toLocaleString()}</strong>
+            </div>
+            <div class="bg-sky-50 border border-sky-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-sky-800 block">අද Bank Transfers</span>
+              <strong class="text-xl">Rs. ${bals.todayBankIncome.toLocaleString()}</strong>
+            </div>
+            <div class="bg-sky-50 border border-sky-200 p-3.5 rounded-xl">
+              <span class="text-[11px] font-black text-sky-800 block">මුළු Bank Transfers · සියලු දින</span>
+              <strong class="text-xl">Rs. ${totalBankIncome.toLocaleString()}</strong>
             </div>
           </div>
         </div>
@@ -2101,7 +2133,7 @@
                     <td class="p-2 flex gap-1">
                       <button type="button" onclick="radsShowBill('${b.id}')" class="bg-gray-100 px-2 rounded">බලන්න / Print</button>
                       ${b.balance > 0 ? `<button onclick="collectPayment('${b.id}')" class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">Collect</button>` : ''}
-                      ${isBossOrFamily(ui.user) ? `<button onclick="deleteBill('${b.id}')" class="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-bold">Del</button>` : ''}
+                      ${isBossOrFamily(ui.user) && b.status!=='Void' ? `<button onclick="deleteBill('${b.id}')" class="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-bold">Delete</button>` : ''}
                     </td>
                   </tr>
                 `;
@@ -2312,9 +2344,9 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     const designerMode = isDesignerOnly(ui.user);
     const stepKeys = ['Mashimant', 'Quotation', 'JobStart', 'DesignerSelect', 'ArtworkOk', 'Print', 'Constructor', 'WorkStart', 'JobComplete', 'Invoice', 'Payment'];
 
-    const visibleJobs = designerMode
-      ? cloudData.jobs.filter(j => !j.steps.JobComplete && j.designer.toLowerCase().includes(ui.user.name.toLowerCase()))
-      : cloudData.jobs;
+    const myJobs=cloudData.jobs.filter(j=>jobBelongsTo(j,ui.user));
+    const visibleJobs=designerMode||ui.myJobsOnly?myJobs:cloudData.jobs;
+    const groups=[['වැඩ කරමින් පවතින Jobs',visibleJobs.filter(j=>!j.steps.JobComplete)],['අවසන් කළ Jobs',visibleJobs.filter(j=>j.steps.JobComplete)]];
 
     return `
       <div class="max-w-7xl mx-auto p-4 space-y-4">
@@ -2326,7 +2358,8 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
               <input id="nj_bill" type="text" placeholder="Bill No (RADS-004)" class="border rounded-lg px-2.5 py-1.5 text-xs font-black uppercase" />
               <select id="nj_cat" class="border rounded-lg px-2 py-1.5 text-xs font-bold"><option>Branding</option><option>Board</option><option>Sticker</option><option>Print</option></select>
               <select id="nj_designer" class="border rounded-lg px-2 py-1.5 text-xs font-bold">
-                ${cloudData.staff.filter(s => s.role === 'Designer').map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
+                <option value="">Designer තෝරන්න</option>
+                ${cloudData.staff.filter(s=>s.role==='Designer'&&!s.disabled).map(s=>`<option value="${txt(s.id)}">${txt(s.name)}</option>`).join('')}
               </select>
               <input id="nj_finish" type="date" value="${getColomboDate()}" class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
             </div>
@@ -2337,9 +2370,10 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
           </div>
         ` : ''}
 
-        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
-          <h2 class="font-black text-base">🛠️ ${designerMode ? 'MY ACTIVE JOBS' : 'ALL AGENCY JOBS'} (${visibleJobs.length})</h2>
-          ${visibleJobs.map(j => {
+        ${designerMode?'':`<button class="bg-black text-white px-3 py-2 rounded" onclick="ui.myJobsOnly=!ui.myJobsOnly; render()">${ui.myJobsOnly?'සියලු Jobs බලන්න':'මට අදාළ Jobs බලන්න'}</button>`}
+        ${groups.map(([title,jobs])=>`<div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h2 class="font-black text-base">${title} (${jobs.length})</h2>
+          ${jobs.map(j => {
             const jIdx = cloudData.jobs.findIndex(x => x.id === j.id);
             const linkedBill = j.billNo ? cloudData.bills.find(b => b.id.toUpperCase() === j.billNo.toUpperCase()) : null;
             const unpaidFinishWarning = j.steps.JobComplete && linkedBill && linkedBill.balance > 0;
@@ -2354,7 +2388,7 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
                     <span class="font-black text-sm ml-1">${j.name}</span>
                   </div>
                   <div class="text-xs font-bold flex flex-wrap items-center gap-2">
-                    <span>Finish: <b class="text-red-600">${j.finish}</b> | Designer: <b>${j.designer}</b></span>
+                    <span>Finish: <b class="text-red-600">${txt(j.finish)}</b> | Designer: <b>${txt(staffDisplay(j.designerId,j.designer))}</b> | Added by: <b>${txt(staffDisplay(j.creatorId,j.giver))}</b> · ${txt(j.creatorSection)}</span>
                     ${!designerMode ? `<span class="text-cyan-800">🏦 Bank Paid: Rs.${j.bankPaid || 0}</span>` : ''}
                     ${!designerMode ? `<button onclick="addJobBankTransfer(${jIdx})" class="bg-cyan-700 text-white px-2 py-0.5 rounded text-[11px]">🏦 + Bank Transfer</button>` : ''}
                   </div>
@@ -2368,8 +2402,8 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
                 ` : ''}
 
                 <div class="flex flex-wrap gap-1.5">
-                  ${stepKeys.map(k => `
-                    <button onclick="cloudData.jobs[${jIdx}].steps['${k}']=!cloudData.jobs[${jIdx}].steps['${k}']; saveCloud('Updated Job #${j.id} ${k}'); render();"
+                  ${(designerMode?stepKeys.filter(k=>['ArtworkOk','Print','JobComplete'].includes(k)):stepKeys).map(k => `
+                    <button onclick="radsSetJobStep(this.dataset.job,this.dataset.step,this.dataset.done==='true')" data-job="${txt(j.id)}" data-step="${k}" data-done="${!j.steps[k]}"
                       class="px-2 py-1 rounded text-[11px] font-bold border ${j.steps[k] ? 'bg-emerald-100 border-emerald-400 text-emerald-950' : 'bg-white border-gray-300 text-gray-700'}">
                       ${j.steps[k] ? '✅' : '⬜'} ${k}
                     </button>
@@ -2378,7 +2412,7 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
               </div>
             `;
           }).join('')}
-        </div>
+        </div>`).join('')}
       </div>
     `;
   }
@@ -3012,7 +3046,7 @@ const workSection = item => /^(print sticker|sticker \([346] pass\)|sticker with
 const uuid = () => crypto.randomUUID();
 const todayISO = () => new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Colombo',year:'numeric',month:'2-digit',day:'2-digit'}).format();
 getColomboDate = todayISO;
-let verifiedSnapshot = false, busyCounter = false, savedReceipt = null;
+let busyCounter = false, savedReceipt = null;
 const clientPhone = raw => {
   const normalized = formatWhatsAppNumber(String(raw||''));
   return /^947\d{8}$/.test(normalized) ? normalized : '';
@@ -3020,7 +3054,8 @@ const clientPhone = raw => {
 const isBillingRole = () => isManagerOrCashier(ui.user) && !ui.user.disabled;
 const cloneState = value => JSON.parse(JSON.stringify(value));
 async function commitUpdate(action, apply) {
-  if (busyCounter || !verifiedSnapshot || !ui.user) throw Error('Cloud සම්බන්ධතාව හෝ login එක පරීක්ෂා කරන්න.');
+  if (!ui.user) throw Error('නැවත login වෙලා උත්සාහ කරන්න.');
+  if (busyCounter) throw Error('දැනට save වෙමින් පවතී.');
   busyCounter = true;
   const actor = ui.user.id;
   try {
@@ -3035,6 +3070,13 @@ async function commitUpdate(action, apply) {
       transaction.set(stateDocRef,state);
       return result;
     });
+  } catch(err) {
+    const code=String(err.code||'').replace(/^firestore\//,'');
+    if(code==='permission-denied')throw Error('Firestore Rules වලින් දත්ත save කිරීමට අවසර දී නැහැ. Admin වෙත දැනුම් දෙන්න.');
+    if(code==='unauthenticated')throw Error('Firebase login එක නැවත පරීක්ෂා කරන්න.');
+    if(['unavailable','deadline-exceeded','cancelled'].includes(code)||/offline/i.test(err.message||''))throw Error('Firestore සම්බන්ධ වුණේ නැහැ. Internet සම්බන්ධ වූ පසු මේ තහවුරු කිරීමෙන්ම නැවත Save කරන්න.');
+    if(code==='aborted')throw Error('එකවර වෙනත් වෙනසක් save වුණා. මේ තහවුරු කිරීමෙන්ම නැවත Save කරන්න.');
+    throw err;
   } finally {busyCounter = false;}
 }
 function takeBillSnapshot() {
@@ -3060,6 +3102,7 @@ function takeBillSnapshot() {
   d.serviceCharge = fixed(d.serviceCharge||0);
   d.total = fixed(d.items.reduce((sum,i)=>sum+i.price*i.qty,0)+d.serviceCharge);
   d.paid = d.pending?0:fixed(d.advance||0);
+  if(!d.pending&&d.paid===0)throw Error('මුදල් ලැබුණා නම් Paid / Advance එකට දාන්න. මුදල් ලැබුණේ නැත්නම් “ගෙවීමක් නැහැ” තෝරන්න.');
   if (![d.serviceCharge,d.total,d.paid].every(Number.isFinite)||d.total<=0||d.serviceCharge<0||d.paid<0||d.paid>d.total) throw Error('Total, service charge සහ ගෙවූ මුදල පරීක්ෂා කරන්න.');
   d.balance = fixed(d.total-d.paid);
   d.date = todayISO();
@@ -3154,7 +3197,7 @@ window.saveNewBill = (printAfter=false) => {
         if(d.paid)receiveMoney(b,d.paid,d.payMethod,d.floor,d.date,d.cashier,request);
         if(d.createJob){
           s.jobs ||= [];
-          s.jobs.unshift({id:nextId(s.jobs,'',4),billNo:b.id,name:b.items.map(i=>i.name).join(', '),cat:'Bill Job',urgent:false,date:b.date,finish:b.date,giver:p.name,designer:'-',constructor:'-',amount:b.total,bankPaid:0,branch:b.branch,steps:{Mashimant:false,Quotation:false,JobStart:true,DesignerSelect:false,ArtworkOk:false,Print:false,Constructor:false,WorkStart:false,JobComplete:false,Invoice:true,Payment:b.balance===0}});
+          s.jobs.unshift({id:nextId(s.jobs,'',4),billNo:b.id,name:b.items.map(i=>i.name).join(', '),cat:'Bill Job',urgent:false,date:b.date,finish:b.date,giver:p.name,creatorId:p.id,creatorSection:p.sector||p.role,designer:'-',constructor:'-',amount:b.total,bankPaid:0,branch:b.branch,steps:{Mashimant:false,Quotation:false,JobStart:true,DesignerSelect:false,ArtworkOk:false,Print:false,Constructor:false,WorkStart:false,JobComplete:false,Invoice:true,Payment:b.balance===0}});
         }
         if(b.custPhone){
           s.clientsDir ||= [];
@@ -3176,7 +3219,12 @@ window.saveNewBill = (printAfter=false) => {
 review.addEventListener('cancel',e=>{if(busyCounter)e.preventDefault();});
 function showSavedReceipt(b) {
   savedReceipt=b;
-  review.innerHTML=`<h2>${txt(b.id)}</h2>${printableBill(b)}<div class="rads-actions"><button data-print>මුද්‍රණය</button>${clientPhone(b.custPhone)?'<button data-wa>WhatsApp</button>':''}<button data-close>වසන්න</button></div>`;
+  review.innerHTML=`<h2>${txt(b.id)}</h2><div class="rads-actions">
+  ${b.status!=='Void'&&b.balance>0?`<button type="button" data-quick-collect>ඉතිරි මුදල ගන්න · Rs. ${currency(b.balance)}</button>`:''}
+  <button type="button" data-quick-history>Customer History</button></div>${printableBill(b)}<div class="rads-actions"><button data-print>මුද්‍රණය</button>${clientPhone(b.custPhone)?'<button data-wa>WhatsApp</button>':''}<button data-close>වසන්න</button></div>`;
+  review.querySelector('[data-quick-history]').onclick=()=>showCashierHistory(b);
+  const take=review.querySelector('[data-quick-collect]');
+  if(take)take.onclick=()=>collectPayment(b.id);
   review.querySelector('[data-print]').onclick=()=>doPrint(printableBill(b),'receipt');
   review.querySelector('[data-close]').onclick=()=>review.close();
   const wa=review.querySelector('[data-wa]');
@@ -3231,37 +3279,61 @@ calcMonthlyStats = function(){
   const mExpenses=sum(cloudData.extraWorks?.filter(e=>e.kind!=='withdrawal'))+sum(cloudData.teaTransfers);
   return {mIncome,mExpenses,mNet:fixed(mIncome-mExpenses),totalCustomerDues:cloudData.bills.filter(b=>b.status!=='Void').reduce((t,b)=>t+Number(b.balance||0),0)};
 };
-window.collectPayment = async id => {
-  if(!isBillingRole())return;
-  const current=cloudData.bills.find(b=>b.id===id&&b.status!=='Void');
+window.collectPayment = id => {
+  if(!isBillingRole()||busyCounter)return;
+  const current=cloudData.bills.find(b=>b.id===id&&b.status!=='Void'&&b.balance>0);
   if(!current)return;
-  const amount=fixed(prompt('ලැබුණු මුදල (Rs.)',current.balance));
-  if(!amount)return;
-  const method=prompt('ගෙවීමේ ක්‍රමය: Cash හෝ Bank','Cash');
-  if(method===null)return;
-  if(!/^(cash|bank)$/i.test(method.trim()))return alert('Cash හෝ Bank ඇතුළත් කරන්න.');
-  const mode=/^bank$/i.test(method.trim())?'Bank Transfer':'Cash';
-  const floor=current.items.some(isPlate)?'Ground':ui.selectedCashierFloor;
-  if(!confirm(`${id} · ${FLOOR[floor]} · ${mode} · Rs. ${currency(amount)}?`))return;
-  try{
-    const request=uuid(),date=todayISO();
-    await commitUpdate('Bill payment recorded',(s,p)=>{
-      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
-      const b=s.bills.find(b=>b.id===id&&b.status!=='Void');
-      if(!b)throw Error('Bill එක හමු වුණේ නැහැ.');
-      receiveMoney(b,amount,mode,floor,date,p.name,request);
-      for(const job of (s.jobs||[]))if(job.billNo===id&&b.balance===0)job.steps.Payment=true;
-    });
-    playSoundEffect('cashIn');
-  }catch(err){alert(err.message);}
+  savedReceipt=null;
+  const plate=current.items.some(isPlate);
+  const selected=plate?'Ground':ui.selectedCashierFloor;
+  const request=uuid();
+  review.innerHTML=`<h2>මුදල් භාරගන්න · ${txt(id)}</h2><p>${txt(current.customer)} · ඉතිරි Rs. ${currency(current.balance)}</p>
+    <form class="rads-smart-find" data-payment-form>
+    <label>දැන් ලැබුණු මුදල (Rs.)<input name="amount" type="number" min="0.01" max="${Number(current.balance)}" step="0.01" inputmode="decimal" required></label>
+    <button type="button" class="underline" data-full-pay>සම්පූර්ණ ඉතිරිය ලැබුණා</button>
+    <label>ගෙවීමේ ක්‍රමය<select name="method" required><option value="">Cash හෝ Bank තෝරන්න</option><option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option></select></label>
+    <label data-counter-label>Cashier<select name="floor" ${plate?'disabled':''}>${Object.entries(FLOOR).map(([key,name])=>`<option value="${key}" ${key===selected?'selected':''}>${name}</option>`).join('')}</select></label>
+    <p data-pay-error role="alert" class="text-red-700"></p>
+    <button type="submit" class="rads-cash-primary">ලැබුණු මුදල Save කරන්න</button>
+    <button type="button" class="underline" data-cancel-pay>ආපසු</button></form>`;
+  const form=review.querySelector('[data-payment-form]');
+  const {amount,method,floor}=form.elements;
+  form.querySelector('[data-full-pay]').onclick=()=>{amount.value=current.balance;};
+  method.onchange=()=>{form.querySelector('[data-counter-label]').hidden=method.value==='Bank Transfer';};
+  form.querySelector('[data-cancel-pay]').onclick=()=>{if(!busyCounter)showSavedReceipt(current);};
+  form.onsubmit=async event=>{
+    event.preventDefault();
+    if(busyCounter||!form.reportValidity())return;
+    const submit=form.querySelector('[type=submit]');
+    submit.disabled=true;
+    try{
+      const paid=fixed(amount.value),mode=method.value,register=floor.value,date=todayISO();
+      const updated=await commitUpdate('Bill payment recorded',(state,person)=>{
+        if(!isManagerOrCashier(person))throw Error('Cashier access අවශ්‍යයි.');
+        const bill=state.bills.find(b=>b.id===id&&b.status!=='Void');
+        if(!bill)throw Error('Bill එක හමු වුණේ නැහැ.');
+        receiveMoney(bill,paid,mode,bill.items.some(isPlate)?'Ground':register,date,person.name,request);
+        for(const job of state.jobs||[])if(job.billNo===id&&bill.balance===0)job.steps.Payment=true;
+        return bill;
+      });
+      playSoundEffect('cashIn');
+      showSavedReceipt(updated);
+    }catch(err){form.querySelector('[data-pay-error]').textContent=err.message;submit.disabled=false;}
+  };
+  if(!review.open)review.showModal();
 };
 window.deleteBill = async id => {
-  if(!isBossOrFamily(ui.user)||!confirm(id+' void කරන්නද?'))return;
+  if(!isBossOrFamily(ui.user))return;
+  const advice='මෙම බිල සහ එහි ගෙවීම් ආදායම්, cashier සහ ණය වාර්තාවලින් ඉවත් වේ.';
+  if(!confirm(id+' ඉවත් කරන්නද? '+advice))return;
+  const reason=prompt('බිල ඉවත් කරන හේතුව')?.trim();
+  if(!reason)return;
   try{
     await commitUpdate('Bill voided',(s,p)=>{
       if(!isBossOrFamily(p))throw Error('Boss access අවශ්‍යයි.');
       const b=s.bills.find(b=>b.id===id);
-      if(!b||Number(b.advance||0)+Number(b.bankPaid||0)>0)throw Error('ගෙවීම් ඇති bill එකක් void කිරීමට පෙර ගිණුම් reconcile කරන්න.');
+      if(!b||b.status==='Void')throw Error('මෙම බිල දැනටමත් ඉවත් කර ඇත හෝ හමු නොවීය.');
+      b.voidDetails={date:todayISO(),by:p.id,reason,previousStatus:b.status,previousBalance:b.balance};
       b.status='Void';b.balance=0;
     });
   }catch(err){alert(err.message);}
@@ -3330,7 +3402,11 @@ window.radsFindPhone = raw => {
   if(!bills.length)return;
   const summary=document.createElement('p');summary.textContent=`${customer} · බිල් ${bills.length} · මේක ${bills.length+1} වැනි බිල${bills.length>=5?' · Regular customer':''}`;
   box.append(summary);
-  for(const b of bills.slice(0,10)){
+  const history=document.createElement('button');
+  history.type='button';history.textContent='සම්පූර්ණ Customer History';
+  history.onclick=()=>showCashierHistory(bills[0]);
+  box.append(history);
+  for(const b of bills.slice(0,3)){
     const btn=document.createElement('button');btn.type='button';btn.textContent=`${b.id} · ${b.date} · ඉතිරි Rs. ${currency(b.balance)}`;btn.onclick=()=>showSavedReceipt(b);box.append(btn);
   }
 };
@@ -3371,13 +3447,19 @@ window.radsTeaCounter = async () => {
     s.teaCashier=s.teaCashier==='Counter3'?'Upper':'Counter3';
   });}catch(err){alert(err.message);}
 };
-onSnapshot(stateDocRef,{includeMetadataChanges:true},snapshot=>{
-  verifiedSnapshot=snapshot.exists()&&!snapshot.metadata.fromCache&&!snapshot.metadata.hasPendingWrites;
-},()=>{verifiedSnapshot=false;});
-window.radsStaff = async mode => {
+window.radsManageStaff=()=>{
+  if(!isBossOrFamily(ui.user))return;
+  review.innerHTML=`<h2>Staff Remove / Restore</h2><div class="space-y-2">
+  ${cloudData.staff.filter(s=>!s.isFamily).map(s=>`<div class="flex justify-between gap-2"><span>${txt(s.name)} · ${txt(s.id)}</span><button type="button" class="underline" data-staff-remove="${txt(s.id)}" data-disabled="${Boolean(s.disabled)}">${s.disabled?'Restore':'Remove'}</button></div>`).join('')}
+  </div><button type="button" class="mt-4 underline" data-close>වසන්න</button>`;
+  review.querySelector('[data-close]').onclick=()=>review.close();
+  review.querySelectorAll('[data-staff-remove]').forEach(button=>{button.onclick=()=>radsStaff('toggle',button.dataset.staffRemove,button.dataset.disabled!=='true');});
+  if(!review.open)review.showModal();
+};
+window.radsStaff = async (mode,selectedId,disable) => {
   if(!isBossOrFamily(ui.user))return alert('Boss login අවශ්‍යයි.');
   try{
-    const staffId=mode==='add'?'':prompt('Staff ID (PC...)')?.trim().toUpperCase();
+    const staffId=mode==='add'?'':selectedId||prompt('Staff ID (PC...)')?.trim().toUpperCase();
     if(mode!=='add'&&!staffId)return;
     const entry=cloudData.staff.find(s=>s.id===staffId);
     if(mode!=='add'&&!entry)return alert('Staff ID හමු වුණේ නැහැ.');
@@ -3388,7 +3470,7 @@ window.radsStaff = async mode => {
     if(mode!=='toggle'&&!['Cashier','Designer','Account','Management','Printing Operator','Sticker Worker','Yard Job'].includes(role))throw Error('වලංගු role එකක් තෝරන්න.');
     const password=mode==='add'?prompt('Temporary password (අකුරු 12ක් හෝ වැඩි)'):'';
     if(mode==='add'&&(!password||password.length<12))throw Error('Temporary password එක අකුරු 12ක් හෝ වැඩි විය යුතුයි.');
-    if(!confirm(`${mode} · ${name}?`))return;
+    if(!confirm(`${mode==='toggle'?(disable?'Remove':'Restore'):mode} · ${name}?`))return;
     await commitUpdate('Staff '+mode,(s,p)=>{
       if(!isBossOrFamily(p))throw Error('Boss access අවශ්‍යයි.');
       if(mode==='add'){
@@ -3397,9 +3479,10 @@ window.radsStaff = async mode => {
       }
       const member=s.staff.find(x=>x.id===staffId);
       if(!member||member.isFamily)throw Error('Boss / Family account එක මෙම menu එකෙන් වෙනස් කළ නොහැක.');
-      if(mode==='toggle')member.disabled=!member.disabled;
+      if(mode==='toggle')member.disabled=disable;
       else {member.name=name;member.role=role;}
     });
+    if(mode==='toggle')radsManageStaff();
   }catch(err){alert(err.message);}
 };
 window.radsBillButton = (type) => {
@@ -3482,7 +3565,7 @@ function pettyMarkup(){
     ${rows.length?'':'<p class="text-xs text-gray-500">අත්තිකාරම් සටහන් නැහැ.</p>'}</section>`;
 }
 
-const RADS_RELEASE = 'Number Plate අංක, වර්ගය අනුව ආදායම් වාර්තා සහ සිංහල මාර්ගෝපදේශය';
+const RADS_RELEASE = 'Smart Cashier, ඉක්මන් ගෙවීම් සහ Customer History';
 let salesFilter={query:'',from:'',to:'',plate:false};
 function vehicleParts(value) {
   const match=String(value||'').toUpperCase().match(/^(?:([A-Z]{1,2})-)?([A-Z]{0,3})\s*([0-9]{0,4})$/);
@@ -3582,22 +3665,143 @@ function renderAppGuide() {
   <div class="bg-black text-white rounded-xl p-4"><strong>Technical Support · NS Udagedara</strong><br><a class="underline" href="https://wa.me/94769882044" target="_blank" rel="noopener noreferrer">WhatsApp 076 988 2044</a></div></section>`;
 }
 
+function jobBelongsTo(job,user) {
+  const same=(a,b)=>Boolean(a&&b)&&String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
+  return (job.designerId ? job.designerId===user.id : same(job.designer,user.name)) ||
+    (job.creatorId ? job.creatorId===user.id : same(job.giver,user.name));
+}
+window.radsSetJobStep=async (id,key,done)=>{
+  try{
+    await commitUpdate('Job step updated',(state,person)=>{
+      const job=state.jobs.find(j=>j.id===id);
+      if(!job||!Object.hasOwn(job.steps,key))throw Error('Job එක හමු වුණේ නැහැ.');
+      if(!isManagerOrCashier(person)&&!jobBelongsTo(job,person))throw Error('මෙම Job එක වෙනස් කිරීමට අවසර නැහැ.');
+      job.steps[key]=done;
+    });
+  }catch(error){alert(error.message);}
+};
+function staffDisplay(id,fallback) {
+  return cloudData.staff.find(s=>s.id===id)?.name||fallback||'—';
+}
+function monitorBars(title,entries,minimum,format,note='') {
+  const maximum=Math.max(minimum,...entries.map(([,n])=>Math.abs(n)));
+  return `<section class="bg-white text-gray-900 border rounded-xl p-4"><h2 class="font-black mb-3">${title}</h2>
+    ${note?`<p class="text-xs text-gray-600 mb-3">${note}</p>`:''}
+    ${entries.map(([label,value])=>`<div class="mb-2"><div class="flex justify-between gap-2 text-xs font-semibold"><span>${label}</span><span>${format(value)}</span></div>
+      <div class="bg-gray-100 rounded h-2"><div class="h-2 rounded ${value<0?'bg-red-600':'bg-blue-700'}" style="width:${Math.abs(value)/maximum*100}%"></div></div></div>`).join('')}
+    <div class="flex justify-between text-xs text-gray-500"><span>${format(0)}</span><span>${format(maximum)}</span></div></section>`;
+}
+function stockRolls(stock) {
+  const totals={'Flex':0,'Sticker':0,'Light Board':0};
+  for(const item of stock||[]){
+    if(item.archived||!/^rolls?$/i.test(item.unit||''))continue;
+    const name=(item.cat||'')+' '+(item.name||'');
+    const category=/light[ -]?board/i.test(name)?'Light Board':/sticker|vision/i.test(name)?'Sticker':/flex/i.test(name)?'Flex':'';
+    if(category)totals[category]+=Math.max(0,Number(item.bought||0)-Number(item.used||0));
+  }
+  return Object.entries(totals);
+}
+function renderMonitoringCharts() {
+  const cash=calcCashierBalances(),month=calcMonthlyStats();
+  return `<div class="grid lg:grid-cols-2 gap-4">${monitorBars('අද මුදල් · '+todayISO(),[
+    ['Cash ලැබීම්',cash.todayCashIncome],['Bank ලැබීම්',cash.todayBankIncome],['අතේ ඇති මුදල',cash.Total],['වියදම් සහ තේ',cash.todayExpenses+cash.todayTeaDeducted]
+  ],1,n=>'Rs. '+currency(n))}
+  ${monitorBars('මාසික ලැබීම් සහ පාරිභෝගික ණය', [['මේ මාසයේ ලැබීම්',month.mIncome],['පාරිභෝගික ණය',month.totalCustomerDues]],1,n=>'Rs. '+currency(n))}
+  ${isBossOrFamily(ui.user)?monitorBars('ඉතිරි stock rolls',stockRolls(cloudData.stock),50,n=>String(n)+' rolls','සාමාන්‍ය මිනුම rolls 0–50. තොගය 50 ඉක්මවූ විට මිනුම වැඩි වේ.'):''}</div>`;
+}
+function refreshTuesdayReminder() {
+  const box=document.getElementById('rads-tuesday-reminder');
+  if(!box)return;
+  const day=new Intl.DateTimeFormat('en',{timeZone:'Asia/Colombo',weekday:'short'}).format();
+  box.hidden=day!=='Tue';
+}
+
+function cashierMatches(query) {
+  const key=String(query||'').trim().toLowerCase();
+  const compact=key.replace(/[^a-z0-9]/g,'');
+  const phone=clientPhone(key);
+  return (cloudData.bills||[]).filter(b=>b.status!=='Void'&&(
+    !key||[b.id,b.customer,b.vehicle,...(b.items||[]).map(i=>i.name)].some(x=>String(x||'').toLowerCase().includes(key))||
+    (phone&&clientPhone(b.custPhone)===phone)||
+    (compact&&String(b.vehicle||'').toLowerCase().replace(/[^a-z0-9]/g,'').includes(compact))
+  ));
+}
+function cashierBillList(target,bills) {
+  const due=bills.reduce((sum,b)=>sum+Number(b.balance||0),0);
+  target.innerHTML=`<p class="mb-2 text-sm font-bold">බිල් ${bills.length} · ගෙවීමට ඉතිරි Rs. ${currency(due)}</p>
+    ${bills.length?'':'<p>ගැළපෙන බිල් නැහැ.</p>'}
+    <div class="max-h-80 overflow-auto space-y-2">${bills.map(b=>`<div class="rounded-lg border bg-white p-2 flex flex-wrap items-center justify-between gap-2">
+    <div><strong>${txt(b.id)} · ${txt(b.customer)}</strong><br><small>${txt(b.date)} · ${txt(b.vehicle||b.items?.map(i=>i.name).join(', '))}</small><br>
+    <small>මුළු Rs. ${currency(b.total)} · ඉතිරි Rs. ${currency(b.balance)}</small></div>
+    <div class="flex gap-2"><button type="button" class="underline" data-view-bill="${txt(b.id)}">බලන්න</button>
+    ${b.balance>0?`<button type="button" class="rads-cash-primary" data-collect-bill="${txt(b.id)}">මුදල් ගන්න</button>`:''}</div></div>`).join('')}</div>`;
+  target.querySelectorAll('[data-view-bill]').forEach(btn=>btn.onclick=()=>radsShowBill(btn.dataset.viewBill));
+  target.querySelectorAll('[data-collect-bill]').forEach(btn=>btn.onclick=()=>collectPayment(btn.dataset.collectBill));
+}
+function showCashierHistory(bill) {
+  savedReceipt=null;
+  const phone=clientPhone(bill.custPhone);
+  const matches=phone?cloudData.bills.filter(b=>b.status!=='Void'&&clientPhone(b.custPhone)===phone):[bill];
+  review.innerHTML=`<h2>Customer History · ${txt(bill.customer)}</h2><p class="text-sm">${phone?'WhatsApp '+txt(phone):'මෙම බිලට WhatsApp අංකයක් සටහන් වී නැහැ.'}</p>
+    <div data-customer-history></div><div class="rads-actions"><button data-back>බිලට ආපසු</button><button data-close>වසන්න</button></div>`;
+  cashierBillList(review.querySelector('[data-customer-history]'),matches);
+  review.querySelector('[data-back]').onclick=()=>showSavedReceipt(bill);
+  review.querySelector('[data-close]').onclick=()=>review.close();
+  if(!review.open)review.showModal();
+}
+function bindSmartCashier(pane) {
+  const input=pane.querySelector('[data-cash-search]'), results=pane.querySelector('[data-cash-results]');
+  const dueOnly=pane.querySelector('[data-cash-due]');
+  const update=()=>cashierBillList(results,cashierMatches(input.value).filter(b=>!dueOnly.checked||b.balance>0));
+  input.value=ui.cashierSearch||'';
+  dueOnly.checked=ui.cashierDueOnly!==false;
+  input.oninput=()=>{
+    ui.cashierSearch=input.value;
+    if(input.value.trim())dueOnly.checked=false;
+    ui.cashierDueOnly=dueOnly.checked;update();
+  };
+  dueOnly.onchange=()=>{ui.cashierDueOnly=dueOnly.checked;update();};
+  update();
+}
+function smartCashierMarkup(){
+  const balances=calcCashierBalances();
+  return `<section class="rads-smart-cash"><div class="rads-smart-head"><div><h2>Cashier</h2><p>${todayISO()} · ${txt(FLOOR[ui.selectedCashierFloor])} අතේ Rs. ${currency(balances[ui.selectedCashierFloor])}</p></div>
+    <button type="button" onclick="setPage('newbill')" class="rads-cash-primary">🖨️ අලුත් බිල</button></div>
+    <div class="rads-cash-links"><button type="button" onclick="setPage('newbill');radsBillButton('plate')">Number Plate</button><button type="button" onclick="setPage('rates')">Board / සේවා මිල</button><button type="button" onclick="radsIssuePetty()">Petty Cash</button><button type="button" onclick="setPage('sales')">ආදායම් වාර්තා</button></div>
+    <div class="rads-smart-find"><h3>බිල් සොයන්න හෝ ඉතිරි මුදල් ගන්න</h3>
+    <input type="search" data-cash-search aria-label="බිල් සොයන්න" placeholder="Bill No / WhatsApp / නම / වාහන අංකය">
+    <label class="text-sm"><input type="checkbox" data-cash-due checked> ගෙවීමට ඉතිරි බිල් පමණයි</label>
+    <div data-cash-results class="mt-2" aria-live="polite"></div></div></section>`;
+}
+
 const oldRender = render;
 render = function(){
   oldRender();
   if(!ui.user)return;
   const main=document.querySelector('#app main');
+  const appRoot=document.getElementById('app');
+  appRoot.insertAdjacentHTML(main?'afterbegin':'beforeend','<div id="rads-tuesday-reminder" hidden class="bg-yellow-100 text-black px-4 py-2 text-sm font-bold">🚛 අඟහරුවාදා පෙ.ව. 9:15 · නගර සභා කුණු ලොරිය</div>');
+  refreshTuesdayReminder();
+  if(isBillingRole()&&(ui.page==='dashboard'||ui.tvMode)){
+    const panel=document.createElement('div');
+    panel.className='max-w-7xl mx-auto px-4 pt-3';
+    panel.innerHTML=renderMonitoringCharts();
+    if(main)main.prepend(panel);else appRoot.append(panel);
+  }
   main?.insertAdjacentHTML('afterbegin',`<div class="mx-3 mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm" role="status"><strong>අලුත් Update</strong> · ${RADS_RELEASE} <button type="button" onclick="setPage('guide')" class="underline font-bold">භාවිතය බලන්න</button></div>`);
   if(ui.page==='sales')bindSalesReport();
   if(isBillingRole()&&!ui.tvMode){
     const quick=document.createElement('button');
-    quick.type='button';quick.className='rads-quick-bill';quick.textContent='+ බිල';
+    quick.type='button';quick.className='rads-quick-bill';quick.textContent='🖨️ බිල';
     quick.setAttribute('aria-label','අලුත් බිලක් සාදන්න');
     quick.onclick=()=>{if(ui.page!=='newbill')setPage('newbill');document.getElementById('bill_cust_name')?.focus();};
     document.getElementById('app').append(quick);
     if(ui.page==='cashier'){
       const home=document.querySelector('#app main > div');
-      home?.insertAdjacentHTML('afterbegin',pettyMarkup());
+      home?.insertAdjacentHTML('afterbegin',smartCashierMarkup());
+      home?.insertAdjacentHTML('beforeend',pettyMarkup());
+      const pane=home?.querySelector('.rads-smart-cash');
+      if(pane)bindSmartCashier(pane);
       home?.querySelectorAll('[data-petty-id]').forEach(button=>{button.onclick=()=>radsSettlePetty(button.dataset.pettyId);});
     }
   }
@@ -3639,6 +3843,19 @@ render = function(){
   }
 };
 window.render = render;
+
+  let dashboardDate = todayISO();
+  function refreshDashboardDate() {
+    const date = todayISO();
+    if(date===dashboardDate||!ui.user||(ui.page!=='dashboard'&&!ui.tvMode))return;
+    render();
+    dashboardDate=date;
+  }
+  window.setInterval(()=>{refreshDashboardDate();refreshTuesdayReminder();},15000);
+  window.addEventListener('pageshow',refreshDashboardDate);
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden)refreshDashboardDate();
+  });
 
   render();
 </script>
