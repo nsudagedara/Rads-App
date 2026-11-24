@@ -133,6 +133,7 @@
 @page radsReceipt { size:auto;margin:0 }
 @page radsReport { size:A4 portrait;margin:10mm }
 @media print {
+  html:has(body[data-rads-print=report]) { width:auto!important;min-width:0!important;max-width:none!important }
   body[data-rads-print] { width:auto!important;min-width:0!important;max-width:none!important;margin:0!important;padding:0!important;background:#fff!important }
   body[data-rads-print] > :not(#rads-print-root) { display:none!important }
   body[data-rads-print] #rads-print-root,body[data-rads-print] #rads-print-root * { visibility:visible!important }
@@ -365,7 +366,7 @@
           triggerDesktopNotification("✅ PRINTED COMPLETE!", "Printing Room එකෙන් Print Job එකක් අවසන් කර ඇත!", "specialAlert");
         }
       }
-      cloudData = { ...cloudData, ...incoming }; window.cloudData = cloudData;
+      cloudData = { ...cloudData, ...incoming }; ensureFlexStock(cloudData); window.cloudData = cloudData;
       if (!Array.isArray(cloudData.rates)) cloudData.rates = RATE_CARD_ITEMS;
       ui.lastPrintCount = (cloudData.printQueue || []).length;
       ui.lastPendingPrints = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length;
@@ -716,6 +717,8 @@
     const bal = Math.max(0, total - adv);
 
     const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    const receipt = document.getElementById('thermal-bill-print');
+    if (receipt) receipt.innerHTML = draftReceipt(nextId(cloudData.bills,'RADS-',3));
     setTxt('bill_total_disp', 'Rs. ' + total.toLocaleString());
     setTxt('bill_bal_disp', 'Rs. ' + bal.toLocaleString());
     setTxt('prev_total', 'Rs. ' + total.toLocaleString());
@@ -726,18 +729,6 @@
   };
 
   window.syncBillPreviewItems = () => {
-    const prevItems = document.getElementById('prev_items_list');
-    if (prevItems) {
-      prevItems.innerHTML = ui.draftBill.items.map(it => `
-        <div class="py-1 border-b border-dotted border-black">
-          <div class="text-sm font-black leading-snug break-words">${it.name || 'Item'}</div>
-          <div class="flex justify-between text-xs mt-0.5">
-            <span>${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
-            <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
-          </div>
-        </div>
-      `).join('');
-    }
     recalcBillLive();
   };
 
@@ -806,6 +797,7 @@
 
   window.checkCustomerDebt = (custName) => {
     ui.draftBill.customer = custName;
+    recalcBillLive();
     const el = document.getElementById('prev_cust');
     if (el) el.innerText = custName || '-';
     const pdfCust = document.getElementById('pdf_cust');
@@ -1284,7 +1276,7 @@
   window.exportMonthlyCSV = () => {
     const monthPrefix = getCurrentMonthPrefix();
     let csv = 'Bill ID,Date,Customer,PayMethod,Cashier,Floor,Total,Paid,Balance,Status\n';
-    cloudData.bills.filter(b => b.date.startsWith(monthPrefix)).forEach(b => {
+    cloudData.bills.filter(b => b.date.startsWith(monthPrefix) && b.status !== 'Void').forEach(b => {
       const paidAmt = (b.advance || 0) + (b.bankPaid || 0);
       csv += `${b.id},${b.date},"${b.customer}",${b.payMethod || 'Cash'},${b.cashier},${b.floor},${b.total},${paidAmt},${b.balance},${b.status}\n`;
     });
@@ -1375,7 +1367,7 @@
           <div class="bg-[#1b1b1b] border border-emerald-500/40 p-4 rounded-2xl">
             <div class="text-[11px] font-bold text-emerald-400 uppercase">Today Cash Drawer</div>
             <div class="text-2xl md:text-3xl font-black mt-1">Rs. ${bals.Total.toLocaleString()}</div>
-            <div class="text-[10px] text-gray-400 mt-1">G: ${bals.Ground} | U: ${bals.Upper} | C3: ${bals.Counter3}</div>
+            <div class="text-[10px] text-gray-400 mt-1">${cashierBalanceList(bals)}</div>
           </div>
           <div class="bg-[#1b1b1b] border border-cyan-500/40 p-4 rounded-2xl">
             <div class="text-[11px] font-bold text-cyan-400 uppercase">Today Bank Transfers</div>
@@ -1535,7 +1527,7 @@
       { id: 'leave', icon: '📅', label: 'Leave Roster', badge: isBossOrFamily(u) ? pendingLeavesCount : 0, allow: true },
       { id: 'messages', icon: '💬', label: 'Team Chat & WA', allow: true },
       { id: 'report', icon: '📊', label: '6PM Report', allow: isManagerOrCashier(u) },
-      { id: 'yard', icon: '📦', label: 'Yard Stock', allow: true },
+      { id: 'yard', icon: '🏗️', label: 'Yard Stock', allow: true },
       { id: 'plates', icon: '🚘', label: 'Number Plate', allow: isBillingRole() },
       { id: 'sales', icon: '📈', label: 'ආදායම් වාර්තා', allow: isBillingRole() },
       { id: 'guide', icon: '📖', label: 'සිංහල භාවිතය', allow: true },
@@ -1543,8 +1535,13 @@
     ].filter(n => n.allow);
   }
 
+  const headerPages = ['newbill','printqueue','payroll','pending','bookings','tea','profile'];
+  function headerIcon(n) {
+    return `<button type="button" class="relative rounded-lg bg-white/10 hover:bg-white/25 p-2 group" onclick="setPage('${n.id}')" aria-label="${n.label}" title="${n.label}">${n.icon}${n.badge?`<sup class="rounded bg-amber-400 text-black px-1">${n.badge}</sup>`:''}<span aria-hidden="true" class="pointer-events-none absolute top-full right-0 z-50 hidden whitespace-nowrap bg-black px-2 py-1 text-xs text-white group-hover:block group-focus-visible:block">${n.label}</span></button>`;
+  }
+
   function renderNavButtonsList() {
-    return getNavItems().map(n => {
+    return getNavItems().filter(n=>!headerPages.includes(n.id)).map(n => {
       const active = ui.page === n.id;
       return `
         <button onclick="setPage('${n.id}')"
@@ -1572,7 +1569,7 @@
 
     return `
       <div class="brand-header text-white shadow-lg sticky top-0 z-40">
-        <div class="px-4 py-2 flex justify-between items-center">
+        <div class="px-4 py-2 flex flex-wrap gap-2 justify-between items-center">
           <div class="flex items-center gap-2.5">
             <button onclick="ui.menuOpen=!ui.menuOpen; render();" class="lg:hidden bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white font-black text-lg leading-none">☰</button>
             <div onclick="setPage('dashboard')" class="flex items-center gap-2 cursor-pointer">
@@ -1585,11 +1582,10 @@
               </div>
             </div>
           </div>
-          <div class="flex items-center gap-1.5">
+          <div class="flex flex-wrap items-center gap-1.5">
             ${isBossOrFamily(u)?`<button onclick="radsStaff('add')">+ Staff</button><button onclick="radsStaff('edit')">Edit Staff</button><button onclick="radsManageStaff()">Staff Remove / Restore</button>`:""}
-            <button onclick="setPage('printqueue')" class="bg-amber-500 text-black px-2.5 py-1.5 rounded-lg text-[11px] font-black">
-              🖨️ Print (${pendingPrintsCount})
-            </button>
+            ${getNavItems().filter(n=>headerPages.includes(n.id)&&n.id!=='profile').map(headerIcon).join('')}
+            ${headerIcon(getNavItems().find(n=>n.id==='profile'))}
             ${isBossOrFamily(u) ? `<button onclick="ui.tvMode=true; render();" class="bg-black/70 border border-gray-600 px-2.5 py-1.5 rounded-lg text-[11px] font-black">📺 TV</button>` : ''}
             <button onclick="logout()" class="bg-[#E31E24] hover:bg-red-700 px-2.5 py-1.5 rounded-lg text-[11px] font-bold">Logout</button>
           </div>
@@ -1762,7 +1758,7 @@
             <div>
               <p class="text-[11px] font-black text-gray-500 uppercase">TODAY CASH & ACCOUNTS SUMMARY (Auto-Resets at 12:00 Midnight)</p>
               <p class="text-xs text-gray-600 mt-0.5">
-                Ground: <b>Rs.${bals.Ground.toLocaleString()}</b> | Upper: <b>Rs.${bals.Upper.toLocaleString()}</b> | Counter 3: <b>Rs.${bals.Counter3.toLocaleString()}</b>
+                ${cashierBalanceList(bals)}
               </p>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -1842,7 +1838,7 @@
     const total = itemsTotal + Number(d.serviceCharge || 0);
     const adv = d.pending ? 0 : Number(d.advance || 0);
     const bal = Math.max(0, total - adv);
-    const nextBillNo = 'RADS-' + String(cloudData.bills.length + 1).padStart(3, '0');
+    const nextBillNo = nextId(cloudData.bills,'RADS-',3);
 
     return `
       <div class="max-w-7xl mx-auto p-3 space-y-4">
@@ -1960,14 +1956,14 @@
               <div>
                 <label class="text-[11px] font-bold">Service Note</label>
                 <input id="bill_svc_note" type="text" value="${d.serviceNote}"
-                  oninput="ui.draftBill.serviceNote=this.value;"
+                  oninput="ui.draftBill.serviceNote=this.value; recalcBillLive();"
                   onkeydown="handleBillEnter(event, 'bill_advance_input')"
                   placeholder="Fixing..." class="w-full border rounded px-2 py-1.5 text-xs" />
               </div>
               <div>
                 <label class="text-[11px] font-bold">Cash Register</label>
-                <select onchange="ui.draftBill.floor=this.value;" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
-                  <option ${d.floor==='Ground'?'selected':''}>Ground</option><option ${d.floor==='Upper'?'selected':''}>Upper</option><option ${d.floor==='Counter3'?'selected':''}>Counter3</option>
+                <select onchange="ui.draftBill.floor=this.value; recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
+                  ${cashierOptions(d.floor)}
                 </select>
               </div>
             </div>
@@ -2005,62 +2001,7 @@
             <div class="bg-gray-200 p-3 rounded-2xl">
               <p class="text-[10px] font-bold text-gray-600 text-center mb-1.5">72mm Full-Width Thermal Preview (80mm Paper / 72mm Print)</p>
               <div id="thermal-bill-print" class="thermal-preview shadow">
-                <div class="text-center text-base font-black tracking-tight uppercase leading-tight">ROSHAN ADVERTISING</div>
-                <div class="text-center text-xs font-black tracking-wider mt-0.5">SERVICES (PVT) LTD.</div>
-                <div class="text-center text-xs mt-0.5">Medirigiriya</div>
-                <div class="text-center text-xs">027 224 8828 / 071 555 5534</div>
-                <div class="border-t-2 border-black my-1.5"></div>
-
-                <div class="space-y-0.5 text-xs">
-                  <div class="flex justify-between"><span>BILL:</span><span class="font-black">${nextBillNo}</span></div>
-                  <div class="flex justify-between"><span>DATE:</span><span>${getColomboDate()}</span></div>
-                  <div class="flex justify-between"><span>MODE:</span><span>${d.payMethod}</span></div>
-                  <div class="flex justify-between"><span>CASHIER:</span><span>${ui.user.name}</span></div>
-                  <div class="pt-0.5 break-words">CUST: <span id="prev_cust" class="font-black">${d.customer || '-'}</span></div>
-                </div>
-
-                <div class="border-t-2 border-dashed border-black my-1.5"></div>
-
-                <div id="prev_items_list" class="space-y-1">
-                  ${d.items.map(it => `
-                    <div class="py-1 border-b border-dotted border-black">
-                      <div class="text-sm font-black leading-snug break-words">${it.name || 'Item'}</div>
-                      <div class="flex justify-between text-xs mt-0.5">
-                        <span>${it.qty} x Rs.${Number(it.price).toLocaleString()}</span>
-                        <span class="font-black">Rs.${(Number(it.qty) * Number(it.price)).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-
-                ${Number(d.serviceCharge) > 0 ? `
-                  <div class="py-1 border-b border-dotted border-black flex justify-between text-xs">
-                    <span class="break-words">Svc (${d.serviceNote || 'Charge'})</span>
-                    <span class="font-black">Rs.${Number(d.serviceCharge).toLocaleString()}</span>
-                  </div>
-                ` : ''}
-
-                <div class="border-t-2 border-dashed border-black my-1.5"></div>
-
-                <div class="space-y-1">
-                  <div class="flex justify-between text-sm font-black">
-                    <span>TOTAL:</span>
-                    <span id="prev_total">Rs. ${total.toLocaleString()}</span>
-                  </div>
-                  <div class="flex justify-between text-xs font-black">
-                    <span>PAID:</span>
-                    <span id="prev_adv">Rs. ${adv.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div class="border-y-2 border-black my-1.5 py-1 flex justify-between text-base font-black">
-                  <span>BAL:</span>
-                  <span id="prev_bal">Rs. ${bal.toLocaleString()}</span>
-                </div>
-
-                <div class="text-center text-xs font-black mt-1.5">Thank You! Come Again.</div>
-                <div class="text-center text-[11px] mt-0.5">Next Branch Hingurakgoda.</div>
-                <div class="h-1"></div>
+                ${draftReceipt(nextBillNo)}
               </div>
             </div>
 
@@ -2068,13 +2009,13 @@
               <div class="flex items-center justify-between border-b-2 border-[#E31E24] pb-2 mb-2">
                 <div class="flex items-center gap-2">${getBrandLogoSVG(40)} ${getBrandWordmark(false)}</div>
                 <div class="text-right text-[10px] text-gray-600">
-                  <div>027 224 8828 / 071 555 5534</div>
+                  <div>Medirigiriya - 027 224 8828</div>
                   <div>roshanads50@gmail.com</div>
                   <div class="font-bold text-black">E-INVOICE: ${nextBillNo}</div>
                 </div>
               </div>
               <div class="flex justify-between text-[11px] mb-2">
-                <span><b>Customer:</b> <span id="pdf_cust">${d.customer || 'Valued Customer'}</span></span>
+                <span><b>Your Name:</b> <span id="pdf_cust">${d.customer || 'Valued Customer'}</span></span>
                 <span><b>Date:</b> ${getColomboDate()}</span>
               </div>
               <table class="w-full text-[11px] border-collapse mb-2">
@@ -2085,31 +2026,32 @@
                 <div id="pdf_total_adv">Total: Rs. ${total.toLocaleString()} | Paid (${d.payMethod}): Rs. ${adv.toLocaleString()}</div>
                 <div id="pdf_bal" class="text-[#E31E24] text-sm">Balance Due: Rs. ${bal.toLocaleString()}</div>
               </div>
-              <div class="text-center text-[9px] text-gray-500 mt-3 pt-1 border-t">Medirigiriya • Next Branch Hingurakgoda.</div>
+              <div class="text-center text-[9px] text-gray-500 mt-3 pt-1 border-t">Thank you!<br>Near Branch Hingurakgoada.</div>
             </div>
           </div>
         </div>
 
-        <div class="bg-white p-4 rounded-2xl shadow border overflow-x-auto">
+        <div data-history="bills" class="bg-white p-4 rounded-2xl shadow border overflow-x-auto">
+          ${bulkControls()}
           <div class="flex justify-between items-center mb-2">
             <h3 class="font-black text-sm">📜 BILLS HISTORY (${cloudData.bills.length})</h3>
             <button onclick="exportMonthlyCSV()" class="bg-emerald-700 text-white px-3 py-1 rounded-lg text-xs font-bold">📥 Export Excel (CSV)</button>
           </div>
           <table class="w-full text-xs text-left">
             <thead class="bg-gray-100 font-black">
-              <tr><th class="p-2">Bill ID</th><th class="p-2">Date</th><th class="p-2">Customer</th><th class="p-2">Mode</th><th class="p-2">Total</th><th class="p-2">Paid</th><th class="p-2">Balance</th><th class="p-2">Status</th><th class="p-2">Action</th></tr>
+              <tr>${isBossOrFamily(ui.user)?'<th class="p-2">Select</th>':''}<th class="p-2">Bill ID</th><th class="p-2">Date</th><th class="p-2">Customer</th><th class="p-2">Mode</th><th class="p-2">Total</th><th class="p-2">Paid</th><th class="p-2">Balance</th><th class="p-2">Status</th><th class="p-2">Action</th></tr>
             </thead>
             <tbody>
               ${cloudData.bills.map(b => {
                 const totalPaidAmt = (b.advance || 0) + (b.bankPaid || 0);
                 return `
                   <tr class="border-b">
-                    <td class="p-2 font-black">${b.id}</td><td class="p-2">${b.date}</td><td class="p-2 font-bold">${b.customer}</td>
+                    ${bulkCell(b,b.status==='Void')}<td class="p-2 font-black">${b.id}</td><td class="p-2">${b.date}</td><td class="p-2 font-bold">${b.customer}</td>
                     <td class="p-2"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${b.payMethod==='Bank Transfer'?'bg-cyan-100 text-cyan-900':'bg-gray-100'}">${b.payMethod || 'Cash'}</span></td>
                     <td class="p-2 font-bold">Rs.${b.total}</td>
                     <td class="p-2 text-green-700 font-bold">Rs.${totalPaidAmt}</td>
                     <td class="p-2 text-red-700 font-black">Rs.${b.balance}</td>
-                    <td class="p-2"><span class="px-2 py-0.5 rounded font-bold ${b.status==='FULL PAID'?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}">${b.status}</span></td>
+                    <td class="p-2"><span class="px-2 py-0.5 rounded font-bold ${b.status==='FULL PAID'?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}">${b.status}</span>${voidDetails(b)}</td>
                     <td class="p-2 flex gap-1">
                       <button type="button" onclick="radsShowBill('${b.id}')" class="bg-gray-100 px-2 rounded">බලන්න / Print</button>
                       ${b.balance > 0 ? `<button onclick="collectPayment('${b.id}')" class="bg-blue-600 text-white px-2 py-0.5 rounded font-bold">Collect</button>` : ''}
@@ -2234,21 +2176,22 @@
 
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
+        ${isBossOrFamily(ui.user)?'<button type="button" class="bg-black text-white px-3 py-2 rounded" onclick="radsAddCashier()">+ Add Cashier Counter</button>':''}
         <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
           <div>
             <span class="text-[11px] font-bold text-gray-500">SELECT CASH REGISTER (Midnight Auto-Reset at 12:00 AM)</span>
             <div class="flex flex-wrap gap-2 mt-1">
-              ${['Ground', 'Upper', 'Counter3'].map(f => `
+              ${Object.keys(cashierFloors()).map(f => `
                 <button onclick="ui.selectedCashierFloor='${f}'; ui.draftBill.floor='${f}'; render();"
                   class="px-3 py-1.5 rounded-xl text-xs font-black ${ui.selectedCashierFloor===f ? 'bg-[#E31E24] text-white' : 'bg-gray-100'}">
-                  ${FLOOR[f]}: Rs. ${bals[f].toLocaleString()}
+                  ${txt(cashierFloors()[f])}: Rs. ${currency(bals[f])}
                 </button>
               `).join('')}
             </div>
           </div>
           <div class="text-right">
             <div class="text-[11px] font-bold text-cyan-800">Today Bank Transfers (Separate): <b>Rs. ${bals.todayBankIncome.toLocaleString()}</b></div>
-            <div class="text-2xl font-black text-emerald-700">Cash Drawer Total: Rs. ${bals.Total.toLocaleString()}</div>
+            <div class="text-2xl font-black text-emerald-700">Total Cash Balance: Rs. ${bals.Total.toLocaleString()}</div>
             <div class="text-[11px] text-gray-500">Monthly Balance (1–30): <b>Rs. ${mStats.mNet.toLocaleString()}</b></div>
           </div>
         </div>
@@ -2298,7 +2241,7 @@
             <input id="ew_reason" type="text" placeholder="වියදම (Reason)..." class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
             <input id="ew_amount" type="number" placeholder="Amount (Rs.)" class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
             <select id="ew_floor" disabled class="border rounded-lg px-2 py-1.5 text-xs font-bold">
-${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCashierFloor===id?"selected":""}>${label}</option>`).join("")}</select>
+${cashierOptions(ui.selectedCashierFloor)}</select>
           </div>
           <div class="flex flex-wrap gap-1.5">
             <button onclick="addExtraWork('⛽ Fuel')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ ⛽ Fuel</button>
@@ -2308,7 +2251,7 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
             <button onclick="addExtraWork('Family withdrawal')">Family withdrawal</button><button onclick="addExtraWork('')" class="bg-[#E31E24] text-white px-3 py-1 rounded-lg text-xs font-black ml-auto">+ Add Expense</button>
           </div>
           <div class="space-y-1 pt-2">
-            ${cloudData.extraWorks.slice(0, 8).map(e => `
+            ${cloudData.extraWorks.filter(e=>!e.voidDetails).slice(0, 8).map(e => `
               <div class="flex justify-between text-xs border-b py-1.5">
                 <span><b>${e.date}</b> • ${e.person} — <b>${e.reason}</b> (${e.floor})</span>
                 <span class="font-black text-rose-700">Rs. ${e.amount}</span>
@@ -2605,20 +2548,28 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     `;
   }
 
+  const isFlexStarter = item => item.id==='flex-2ft'||/^flex\s*-?\s*2\s*['`′]$/i.test(String(item.name).trim());
+  function ensureFlexStock(state) {
+    const stock = state.stock ||= [];
+    if (!stock.some(isFlexStarter)) {
+      stock.unshift({id:'flex-2ft',cat:'Flex',name:'Flex - 2′',unit:'rolls',bought:0,used:0});
+    }
+  }
   function renderStock() {
     return `
       <div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4">
+        <label class="block mb-3">Search Material<input id="rads-stock-search" type="search" class="ml-2 border rounded p-2" placeholder="Material or category" value="${txt(ui.stockSearch)}"></label>
         <h2 class="font-black text-base mb-1">📦 WAREHOUSE STOCK (Manual Mark Only — 1-Roll Low Stock Alert)</h2>
         ${canUpdateStock(ui.user)?`<button onclick="radsStockChange(-1,'new')">+ New Stock Item</button>`:""}<p class="text-xs text-gray-500 mb-3">තීන්ත බෝතලයක් හෝ රෝලක් ගත් විගස "- Use 1" Mark කරන්න. ඉතුරු 1ක් වූ විගස Alert එකක් එයි.</p>
         <div class="overflow-x-auto">
           <table class="w-full text-xs text-left">
             <thead class="bg-gray-100 font-black"><tr><th class="p-2">Category</th><th class="p-2">Material</th><th class="p-2">Added</th><th class="p-2">Used</th><th class="p-2">Remaining</th><th class="p-2">Actions</th></tr></thead>
             <tbody>
-              ${cloudData.stock.map((st, i) => {
+              ${cloudData.stock.map((st,i)=>({st,i})).sort((a,b)=>Number(isFlexStarter(b.st))-Number(isFlexStarter(a.st))).map(({st,i}) => {
                 if(st.archived)return "";
                 const rem = st.bought - st.used;
                 return `
-                  <tr class="border-b ${rem <= 1 ? 'bg-red-50' : ''}">
+                  <tr data-stock-search="${txt(st.name+' '+st.cat)}" class="border-b ${rem <= 1 ? 'bg-red-50' : ''}">
                     <td class="p-2 font-bold text-gray-500">${st.cat}</td>
                     <td class="p-2 font-black">${st.name} ${rem <= 1 ? '<span class="ml-1 px-1.5 py-0.5 bg-[#E31E24] text-white text-[10px] rounded">⚠️ LOW!</span>' : ''}</td>
                     <td class="p-2 text-green-700 font-bold">${st.bought} ${st.unit}</td>
@@ -2721,7 +2672,7 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
     const todayBills = paymentRows(cloudData).filter(p=>p.date===today).map(p=>{const b=cloudData.bills.find(b=>b.id===p.bill);return {...b,advance:p.amount,bankPaid:0,payMethod:p.method};});
-    const todayExpenses = cloudData.extraWorks.filter(e => e.date === today);
+    const todayExpenses = cloudData.extraWorks.filter(e => e.date === today && !e.voidDetails);
     const todayBank = (cloudData.bankTransfers || []).filter(bt => bt.date === today);
 
     const roshanPhone = cloudData.staff.find(s => s.id === 'PC01')?.tel || '+94776514284';
@@ -2773,8 +2724,8 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
             <div class="flex justify-between"><span>Today Cash Received:</span><b>Rs. ${bals.todayCashIncome}</b></div>
             <div class="flex justify-between"><span>Today Bank Transfers Received:</span><b>Rs. ${bals.todayBankIncome}</b></div>
             <div class="flex justify-between"><span>Family withdrawals:</span><b>Rs. ${bals.todayWithdrawals}</b></div><div class="flex justify-between"><span>Today Expenses & Tea Deducted:</span><b>Rs. ${bals.todayExpenses + bals.todayTeaDeducted}</b></div>
-            <div class="flex justify-between text-sm font-black border-t pt-1 text-emerald-800"><span>CASH IN HAND (Ground: ${bals.Ground} | Upper: ${bals.Upper}):</span><span>Rs. ${bals.Total}</span></div>
-            <div class="flex justify-between text-xs font-bold pt-1"><span>Month Balance (1–30): Rs. ${mStats.mNet}</span><span>6-Month Carried Summary: Rs. ${(cloudData.sixMonthSummary?.halfYearIncome || 0) - (cloudData.sixMonthSummary?.halfYearExpenses || 0)}</span></div>
+            <div class="flex justify-between text-sm font-black border-t pt-1 text-emerald-800"><span>CASH IN HAND</span><span>Rs. ${bals.Total}</span></div>
+            <div>${cashierBalanceList(bals)}</div><div class="flex justify-between text-xs font-bold pt-1"><span>Month Balance (1–30): Rs. ${mStats.mNet}</span><span>6-Month Carried Summary: Rs. ${(cloudData.sixMonthSummary?.halfYearIncome || 0) - (cloudData.sixMonthSummary?.halfYearExpenses || 0)}</span></div>
           </div>
           <div class="text-center text-[10px] text-gray-500">Medirigiriya • Next Branch Hingurakgoda.</div>
         </div>
@@ -3027,6 +2978,33 @@ ${Object.entries(FLOOR).map(([id,label])=>`<option value="${id}" ${ui.selectedCa
   }
 
 const FLOOR = { Ground:'Ground', Upper:'Upper A', Counter3:'Upper B' };
+function cashierFloors(state=cloudData) {
+  return {...FLOOR,...Object.fromEntries((state.cashierCounters||[]).map(counter=>[counter.id,counter.name]))};
+}
+function cashierOptions(selected) {
+  return Object.entries(cashierFloors()).map(([id,label])=>`<option value="${txt(id)}" ${id===selected?'selected':''}>${txt(label)}</option>`).join('');
+}
+function cashierBalanceList(balances) {
+  return Object.entries(cashierFloors()).map(([id,label])=>`${txt(label)}: <b>Rs. ${currency(balances[id])}</b>`).join(' | ');
+}
+window.radsAddCashier = async () => {
+  if (!isBossOrFamily(ui.user)) return;
+  const name = prompt('අලුත් Cashier Counter එකේ නම')?.trim();
+  if (!name) return;
+  if (name.length > 40) return alert('නම අකුරු 40කට සීමා කරන්න.');
+  const id = 'Counter-' + uuid();
+  try {
+    await commitUpdate('Cashier counter added',(state,person)=>{
+      if (!isBossOrFamily(person)) throw Error('Boss access අවශ්‍යයි.');
+      if (Object.values(cashierFloors(state)).some(label=>label.toLowerCase()===name.toLowerCase())) {
+        throw Error('මේ නම දැනටමත් තියෙනවා.');
+      }
+      (state.cashierCounters ||= []).push({id,name});
+    });
+  } catch (error) {
+    alert(error.message);
+  }
+};
 const branches = ['Medirigiriya','Hanwella','Galle','Hingurakgoda'];
 const txt = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fixed = value => Math.round(Number(value)*100)/100;
@@ -3053,6 +3031,7 @@ async function commitUpdate(action, apply) {
       const snapshot = await transaction.get(stateDocRef);
       if (!snapshot.exists()) throw Error('පැරණි Firestore දත්ත හමු වුණේ නැහැ.');
       const state = snapshot.data();
+      ensureFlexStock(state);
       const person = state.staff?.find(s => s.id === actor && !s.disabled);
       if (!person) throw Error('මෙම සේවකයා සක්‍රීය නැහැ.');
       const result = apply(state, person);
@@ -3089,7 +3068,7 @@ function takeBillSnapshot() {
     d.floor='Ground';
     if(String(d.plateHours??'').trim())plateDue(d.plateHours);
   }
-  if (!FLOOR[d.floor]) throw Error('Cashier එක තෝරන්න.');
+  if (!Object.hasOwn(cashierFloors(),d.floor)) throw Error('Cashier එක තෝරන්න.');
   d.serviceCharge = fixed(d.serviceCharge||0);
   d.total = fixed(d.items.reduce((sum,i)=>sum+i.price*i.qty,0)+d.serviceCharge);
   d.paid = d.pending?0:fixed(d.advance||0);
@@ -3101,19 +3080,37 @@ function takeBillSnapshot() {
   d.cashier=ui.user.name;
   return d;
 }
+function draftReceipt(id) {
+  const d = ui.draftBill;
+  const total = fixed(d.items.reduce((sum,item)=>sum+Number(item.qty||0)*Number(item.price||0),0)+Number(d.serviceCharge||0));
+  const paid = d.pending ? 0 : Number(d.advance||0);
+  return printableBill({...d,id,date:todayISO(),cashier:ui.user.name,floor:d.items.some(isPlate)?'Ground':d.floor,total,paid,balance:Math.max(0,total-paid)},true);
+}
 function printableBill(b,draft=false) {
-  const paid = draft?b.paid:Number(b.advance||0)+Number(b.bankPaid||0);
-  return `<article class="rads-receipt">
-  <h2>ROSHAN ADVERTISING</h2><center>SERVICES (PVT) LTD.<br>${txt(b.branch||branches[0])}<br>027 224 8828 / 071 555 5534</center><hr>
-  <div>${txt(b.id||'Draft')} · ${txt(b.date)}</div><div>${txt(b.title)} ${txt(b.customer)} ${txt(b.custPhone)}</div>
-  ${b.vehicle?`<div>Vehicle · ${txt(b.vehicle)}</div>`:''}
-  <div>${txt(b.cashier)} · ${txt(FLOOR[b.floor]||b.floor)} · ${txt(b.payMethod||'Cash')}</div><hr>
-  ${b.items.map(i=>`<div>${txt(i.name)}${draft?` · ${txt(i.section)}${i.rate?` · Rate ${currency(i.rate)}`:''}`:''}</div><div class="rads-line"><span>${i.qty} × ${currency(i.price)}</span><span>${currency(i.qty*i.price)}</span></div>`).join('')}
-  ${b.serviceCharge?`<div>Service · ${txt(b.serviceNote)} · ${currency(b.serviceCharge)}</div>`:''}
-  <hr><div class="rads-line"><span>Total</span><span>Rs. ${currency(b.total)}</span></div>
-  <div class="rads-line"><span>Paid</span><span>Rs. ${currency(paid)}</span></div>
-  <div class="rads-line"><strong>Balance</strong><strong>Rs. ${currency(b.balance)}</strong></div>
-  ${draft&&b.createJob?'<div>✓ Job එකක් සාදන්න</div>':''}<hr><center>Thank you!</center></article>`;
+  const paid = draft ? b.paid : Number(b.advance||0)+Number(b.bankPaid||0);
+  const section = {Ground:'A Section',Upper:'B Section',Counter3:'B Section'}[b.floor] || cashierFloors()[b.floor];
+  const name = [b.title,b.customer].filter(Boolean).join(' ') || '—';
+  return `<article class="rads-receipt" style="padding:1.5mm">
+    <h2>ROSHAN ADVERTISING</h2><center>SERVICES (PVT) LTD.<br>Medirigiriya - 027 224 8828</center><hr>
+    <div>${txt(b.id||'Draft')} · ${txt(b.date)}</div>
+    <div>Your Name: ${txt(name)}</div>
+    ${b.custPhone?`<div>WhatsApp: ${txt(b.custPhone)}</div>`:''}
+    ${b.vehicle?`<div>Vehicle: ${txt(b.vehicle)}</div>`:''}
+    <div>Cashier: ${txt(b.cashier)}${section?' ('+txt(section)+')':''}</div>
+    <div>Payment: ${txt(b.payMethod||'Cash')}</div><hr>
+    ${b.items.map(i=>{
+      const hasRate=Number(i.rate)>0;
+      const unit=hasRate&&Number(i.w)>0&&Number(i.h)>0?'sq ft':'unit';
+      return `<div>${txt(i.name||i.baseName||'Item')}${draft&&i.section?' · '+txt(i.section):''}</div>
+        <div style="font-size:12px">Rate: Rs. ${currency(hasRate?i.rate:i.price)} / ${unit}</div>
+        <div class="rads-line"><span>${txt(i.qty)} × ${currency(i.price)}</span><span>${currency(i.qty*i.price)}</span></div>`;
+    }).join('')}
+    ${b.serviceCharge?`<div>Service · ${txt(b.serviceNote)} · ${currency(b.serviceCharge)}</div>`:''}
+    <hr><div class="rads-line" style="font-size:20px;font-weight:900"><strong>Total</strong><strong>Rs. ${currency(b.total)}</strong></div>
+    <div class="rads-line"><span>Paid</span><span>Rs. ${currency(paid)}</span></div>
+    <div class="rads-line"><strong>Balance</strong><strong>Rs. ${currency(b.balance)}</strong></div>
+    ${draft&&b.createJob?'<div>✓ Job එකක් සාදන්න</div>':''}
+    <hr><center>Thank you!<br><small style="font-size:10px">Near Branch Hingurakgoada.</small></center></article>`;
 }
 const printRoot = document.createElement('div');
 printRoot.id='rads-print-root';
@@ -3248,31 +3245,32 @@ function paymentRows(state) {
 }
 calcCashierBalances = function(state=cloudData) {
   const day=todayISO();
-  const result={Ground:0,Upper:0,Counter3:0,Total:0,todayCashIncome:0,todayBankIncome:0,todayExpenses:0,todayTeaDeducted:0,todayWithdrawals:0};
+  const floors=cashierFloors(state);
+  const result={...Object.fromEntries(Object.keys(floors).map(id=>[id,0])),Total:0,todayCashIncome:0,todayBankIncome:0,todayExpenses:0,todayTeaDeducted:0,todayWithdrawals:0};
   for(const p of paymentRows(state).filter(p=>p.date===day)){
-    if(p.method==='Cash'){result.todayCashIncome+=p.amount;result[FLOOR[p.floor]?p.floor:'Ground']+=p.amount;}
+    if(p.method==='Cash'){result.todayCashIncome+=p.amount;result[Object.hasOwn(floors,p.floor)?p.floor:'Ground']+=p.amount;}
     else result.todayBankIncome+=p.amount;
   }
   for(const p of (state.bankTransfers||[]).filter(p=>p.date===day))result.todayBankIncome+=Number(p.amount||0);
   for(const [entries,label] of [[state.extraWorks,'todayExpenses'],[state.teaTransfers,'todayTeaDeducted']]){
-    for(const p of (entries||[]).filter(p=>p.date===day)){
+    for(const p of (entries||[]).filter(p=>p.date===day&&!p.voidDetails)){
       result[p.kind==='withdrawal'?'todayWithdrawals':label]+=Number(p.amount);
-      if(p.kind!=='petty-settled')result[FLOOR[p.floor]?p.floor:'Ground']-=Number(p.amount);
+      if(p.kind!=='petty-settled')result[Object.hasOwn(floors,p.floor)?p.floor:'Ground']-=Number(p.amount);
     }
   }
   for(const advance of state.pettyAdvances||[]){
-    if(!FLOOR[advance.floor])continue;
+    if(advance.voidDetails||!Object.hasOwn(floors,advance.floor))continue;
     if(advance.issuedDate===day)result[advance.floor]-=Number(advance.amount);
     if(advance.settledDate===day)result[advance.floor]+=Number(advance.returned);
   }
-  result.Total=fixed(result.Ground+result.Upper+result.Counter3);
+  result.Total=fixed(Object.keys(floors).reduce((sum,id)=>sum+result[id],0));
   return result;
 };
 calcMonthlyStats = function(){
   const month=todayISO().slice(0,7);
   const sum=rows=>(rows||[]).filter(r=>r.date?.startsWith(month)).reduce((total,r)=>total+Number(r.amount||0),0);
   const mIncome=sum(paymentRows(cloudData))+sum(cloudData.bankTransfers);
-  const mExpenses=sum(cloudData.extraWorks?.filter(e=>e.kind!=='withdrawal'))+sum(cloudData.teaTransfers);
+  const mExpenses=sum(cloudData.extraWorks?.filter(e=>e.kind!=='withdrawal'&&!e.voidDetails))+sum(cloudData.teaTransfers);
   return {mIncome,mExpenses,mNet:fixed(mIncome-mExpenses),totalCustomerDues:cloudData.bills.filter(b=>b.status!=='Void').reduce((t,b)=>t+Number(b.balance||0),0)};
 };
 window.collectPayment = id => {
@@ -3288,7 +3286,7 @@ window.collectPayment = id => {
     <label>දැන් ලැබුණු මුදල (Rs.)<input name="amount" type="number" min="0.01" max="${Number(current.balance)}" step="0.01" inputmode="decimal" required></label>
     <button type="button" class="underline" data-full-pay>සම්පූර්ණ ඉතිරිය ලැබුණා</button>
     <label>ගෙවීමේ ක්‍රමය<select name="method" required><option value="">Cash හෝ Bank තෝරන්න</option><option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option></select></label>
-    <label data-counter-label>Cashier<select name="floor" ${plate?'disabled':''}>${Object.entries(FLOOR).map(([key,name])=>`<option value="${key}" ${key===selected?'selected':''}>${name}</option>`).join('')}</select></label>
+    <label data-counter-label>Cashier<select name="floor" ${plate?'disabled':''}>${cashierOptions(selected)}</select></label>
     <p data-pay-error role="alert" class="text-red-700"></p>
     <button type="submit" class="rads-cash-primary">ලැබුණු මුදල Save කරන්න</button>
     <button type="button" class="underline" data-cancel-pay>ආපසු</button></form>`;
@@ -3308,6 +3306,7 @@ window.collectPayment = id => {
         if(!isManagerOrCashier(person))throw Error('Cashier access අවශ්‍යයි.');
         const bill=state.bills.find(b=>b.id===id&&b.status!=='Void');
         if(!bill)throw Error('Bill එක හමු වුණේ නැහැ.');
+        if(!Object.hasOwn(cashierFloors(state),register))throw Error('Cashier එක තෝරන්න.');
         receiveMoney(bill,paid,mode,bill.items.some(isPlate)?'Ground':register,date,person.name,request);
         for(const job of state.jobs||[])if(job.billNo===id&&bill.balance===0)job.steps.Payment=true;
         return bill;
@@ -3318,22 +3317,79 @@ window.collectPayment = id => {
   };
   if(!review.open)review.showModal();
 };
-window.deleteBill = async id => {
-  if(!isBossOrFamily(ui.user))return;
-  const advice='මෙම බිල සහ එහි ගෙවීම් ආදායම්, cashier සහ ණය වාර්තාවලින් ඉවත් වේ.';
-  if(!confirm(id+' ඉවත් කරන්නද? '+advice))return;
-  const reason=prompt('බිල ඉවත් කරන හේතුව')?.trim();
-  if(!reason)return;
-  try{
-    await commitUpdate('Bill voided',(s,p)=>{
-      if(!isBossOrFamily(p))throw Error('Boss access අවශ්‍යයි.');
-      const b=s.bills.find(b=>b.id===id);
-      if(!b||b.status==='Void')throw Error('මෙම බිල දැනටමත් ඉවත් කර ඇත හෝ හමු නොවීය.');
-      b.voidDetails={date:todayISO(),by:p.id,reason,previousStatus:b.status,previousBalance:b.balance};
-      b.status='Void';b.balance=0;
+function bulkControls() {
+  if (!isBossOrFamily(ui.user)) return '';
+  return `<div class="flex flex-wrap items-center gap-3 mb-2">
+    <label><input type="checkbox" data-select-all> Select All</label>
+    <button type="button" class="bg-red-700 text-white rounded px-3 py-1 disabled:opacity-50" data-delete-selected disabled>Delete Selected</button>
+  </div>`;
+}
+function bulkCell(record,voided) {
+  if (!isBossOrFamily(ui.user)) return '';
+  return `<td class="p-2">${voided?'':`<input type="checkbox" data-void-id="${txt(record.id)}" aria-label="Select ${txt(record.id)}">`}</td>`;
+}
+function voidDetails(record) {
+  const details=record.voidDetails;
+  if (!details) return '';
+  return `<small class="block">${txt(details.date)} · ${txt(details.byName||details.by)} · ${txt(details.reason)}</small>`;
+}
+function bindBulkSelection(root) {
+  for (const history of root?.querySelectorAll('[data-history]')||[]) {
+    const boxes=[...history.querySelectorAll('[data-void-id]')];
+    const all=history.querySelector('[data-select-all]');
+    const remove=history.querySelector('[data-delete-selected]');
+    const selected=()=>boxes.filter(box=>box.checked);
+    const sync=()=>{
+      const count=selected().length;
+      all.checked=boxes.length>0&&count===boxes.length;
+      all.indeterminate=count>0&&count<boxes.length;
+      all.disabled=!boxes.length;
+      remove.disabled=!count;
+      remove.textContent=count?`Delete Selected (${count})`:'Delete Selected';
+    };
+    all.onchange=()=>{boxes.forEach(box=>{box.checked=all.checked;});sync();};
+    boxes.forEach(box=>{box.onchange=sync;});
+    remove.onclick=()=>voidHistory(history.dataset.history,selected().map(box=>box.dataset.voidId));
+    sync();
+  }
+}
+async function voidHistory(type,ids) {
+  if (!isBossOrFamily(ui.user)||busyCounter||!ids.length) return;
+  const kind=type==='bills'?'Bill':'Petty Cash';
+  const reason=prompt(`${kind} සටහන් ${ids.length}ක් ඉවත් කරන හේතුව`)?.trim();
+  if (!reason) return;
+  if (!confirm(`${kind} සටහන් ${ids.length}ක් Void කරන්නද? අදාළ ශේෂ සහ වාර්තා යාවත්කාලීන වේ.`)) return;
+  const selected=new Set(ids);
+  try {
+    await commitUpdate(`Void ${kind} (${ids.length})`,(state,person)=>{
+      if (!isBossOrFamily(person)) throw Error('Boss access අවශ්‍යයි.');
+      const records=type==='bills'?state.bills:state.pettyAdvances;
+      const matches=(records||[]).filter(row=>selected.has(String(row.id))&&row.status!=='Void'&&!row.voidDetails);
+      if (matches.length!==ids.length) throw Error('තෝරාගත් සටහන් වෙනස් වී තිබෙනවා. නැවත තෝරන්න.');
+      const details={date:todayISO(),time:new Date().toISOString(),by:person.id,byName:person.name,reason};
+      for (const row of matches) {
+        if (type==='bills') {
+          row.voidDetails={...details,previousStatus:row.status,previousBalance:row.balance};
+          row.status='Void';
+          row.balance=0;
+          for (const job of state.jobs||[]) {
+            if (job.steps&&String(job.billNo||'').toUpperCase()===String(row.id).toUpperCase()) {
+              job.steps.Invoice=false;
+              job.steps.Payment=false;
+            }
+          }
+        } else {
+          row.voidDetails=details;
+          const expense=(state.extraWorks||[]).find(e=>e.id==='petty-'+row.id&&e.kind==='petty-settled');
+          if (expense) expense.voidDetails=details;
+        }
+      }
     });
-  }catch(err){alert(err.message);}
-};
+  } catch (error) {
+    alert(error.message);
+  }
+}
+window.deleteBill = id => voidHistory('bills',[String(id)]);
 window.addExtraWork = async (tag='') => {
   if(!isBillingRole())return;
   const person=document.getElementById('ew_person').value;
@@ -3342,7 +3398,7 @@ window.addExtraWork = async (tag='') => {
   const floor=ui.selectedCashierFloor;
   const kind=tag==='Family withdrawal'?'withdrawal':'expense';
   if(!Number.isFinite(amount)||amount<=0||!person)return alert('නම සහ මුදල පරීක්ෂා කරන්න.');
-  if(!confirm(`${FLOOR[floor]} → ${person} · Rs. ${currency(amount)}?`))return;
+  if(!confirm(`${cashierFloors()[floor]} → ${person} · Rs. ${currency(amount)}?`))return;
   try{
     const id=uuid(),date=todayISO();
     await commitUpdate('Cash movement',(s,p)=>{
@@ -3358,7 +3414,7 @@ window.transferCashierToTeaPurse = async () => {
   const amount=Number(cloudData.pendingTeaDeduction||0);
   const floor=cloudData.teaCashier==='Counter3'?'Counter3':'Upper';
   if(!amount)return alert('වෙන් කිරීමට තේ මුදලක් නැහැ.');
-  if(!confirm(`${FLOOR[floor]} වෙතින් Rs. ${currency(amount)} තේ සඳහා වෙන් කරන්නද?`))return;
+  if(!confirm(`${cashierFloors()[floor]} වෙතින් Rs. ${currency(amount)} තේ සඳහා වෙන් කරන්නද?`))return;
   try{
     const id=uuid(),date=todayISO();
     await commitUpdate('Tea funding',(s,p)=>{
@@ -3394,6 +3450,7 @@ window.radsFindPhone = raw => {
     const preview=document.getElementById('prev_cust');
     if(preview)preview.textContent=customer;
   }
+  recalcBillLive();
   box.replaceChildren();
   if(!bills.length)return;
   const summary=document.createElement('p');summary.textContent=`${customer} · බිල් ${bills.length} · මේක ${bills.length+1} වැනි බිල${bills.length>=5?' · Regular customer':''}`;
@@ -3516,7 +3573,7 @@ window.radsIssuePetty=async function(){
   const amount=pettyAmount(prompt('ලබා දුන් මුදල (Rs.)'));
   if(!Number.isFinite(amount)||amount<=0)return alert('වලංගු මුදලක් දාන්න.');
   const floor=ui.selectedCashierFloor;
-  if(!confirm(`${FLOOR[floor]} → ${person} · Rs. ${currency(amount)} නිකුත් කරන්නද?`))return;
+  if(!confirm(`${cashierFloors()[floor]} → ${person} · Rs. ${currency(amount)} නිකුත් කරන්නද?`))return;
   const id=uuid();
   try {
     await commitUpdate('Petty cash advance issued',(s,p)=>{
@@ -3529,18 +3586,18 @@ window.radsIssuePetty=async function(){
 };
 window.radsSettlePetty=async function(id){
   if(!isBillingRole())return;
-  const row=cloudData.pettyAdvances?.find(a=>a.id===id&&!a.settledDate);
+  const row=cloudData.pettyAdvances?.find(a=>a.id===id&&!a.settledDate&&!a.voidDetails);
   if(!row)return;
   const raw=prompt(`${row.person} · ${row.reason}\nදුන් මුදල Rs. ${currency(row.amount)}\nනැවත ලැබුණු ඉතුරු මුදල දාන්න (Rs.)`);
   if(raw===null)return;
   const returned=pettyAmount(raw);
   try {
     const expense=pettyExpense(row.amount,returned);
-    if(!confirm(`Cashier ${FLOOR[row.floor]} වෙත ඉතුරු Rs. ${currency(returned)}\nඅදාළ වියදම Rs. ${currency(expense)}\nතහවුරු කරන්නද?`))return;
+    if(!confirm(`Cashier ${cashierFloors()[row.floor]} වෙත ඉතුරු Rs. ${currency(returned)}\nඅදාළ වියදම Rs. ${currency(expense)}\nතහවුරු කරන්නද?`))return;
     await commitUpdate('Petty cash advance settled',(s,p)=>{
       if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
       const a=s.pettyAdvances?.find(x=>x.id===id);
-      if(!a||a.settledDate)throw Error('මෙම අත්තිකාරම දැනටමත් පියවා ඇත.');
+      if(!a||a.settledDate||a.voidDetails)throw Error('මෙම අත්තිකාරම දැනටමත් පියවා ඇත.');
       const date=todayISO(), amount=pettyExpense(a.amount,returned);
       Object.assign(a,{returned,expense:amount,settledDate:date,settledBy:p.name});
       if(amount>0)(s.extraWorks||=[]).unshift({id:'petty-'+id,date,floor:a.floor,person:a.person,reason:a.reason,amount,kind:'petty-settled',by:p.name});
@@ -3550,14 +3607,15 @@ window.radsSettlePetty=async function(id){
 };
 function pettyMarkup(){
   const rows=cloudData.pettyAdvances||[];
-  return `<section class="bg-white p-4 rounded-2xl shadow border space-y-2">
+  return `<section data-history="petty" class="bg-white p-4 rounded-2xl shadow border space-y-2">
+    ${bulkControls()}
     <h3 class="font-black">Petty Cash · අත්තිකාරම්</h3>
     <button class="bg-black text-white px-3 py-2 rounded-lg" onclick="radsIssuePetty()">+ මුදල් නිකුත් කරන්න</button>
     <div class="overflow-x-auto"><table class="w-full text-xs text-left">
-    <thead><tr><th>දිනය / Counter</th><th>නම / හේතුව</th><th>දුන් මුදල</th><th>ඉතුරු ලැබුණා</th><th>වියදම</th><th>තත්ත්වය</th></tr></thead>
-    <tbody>${rows.map(a=>`<tr class="border-t"><td class="py-2">${txt(a.issuedDate)} · ${txt(FLOOR[a.floor])}</td><td>${txt(a.person)} · ${txt(a.reason)}</td>
+    <thead><tr>${isBossOrFamily(ui.user)?'<th>Select</th>':''}<th>දිනය / Counter</th><th>නම / හේතුව</th><th>දුන් මුදල</th><th>ඉතුරු ලැබුණා</th><th>වියදම</th><th>තත්ත්වය</th></tr></thead>
+    <tbody>${rows.map(a=>`<tr class="border-t">${bulkCell(a,Boolean(a.voidDetails))}<td class="py-2">${txt(a.issuedDate)} · ${txt(cashierFloors()[a.floor])}</td><td>${txt(a.person)} · ${txt(a.reason)}</td>
     <td>${currency(a.amount)}</td><td>${a.settledDate?currency(a.returned):'—'}</td><td>${a.settledDate?currency(a.expense):'—'}</td>
-    <td>${a.settledDate?'පියවා ඇත':`<button type="button" class="bg-emerald-700 text-white rounded px-2 py-1" data-petty-id="${txt(a.id)}">ඉතුරු මුදල භාරගන්න</button>`}</td></tr>`).join('')}</tbody></table></div>
+    <td>${a.voidDetails?'Void'+voidDetails(a):a.settledDate?'පියවා ඇත':`<button type="button" class="bg-emerald-700 text-white rounded px-2 py-1" data-petty-id="${txt(a.id)}">ඉතුරු මුදල භාරගන්න</button>`}</td></tr>`).join('')}</tbody></table></div>
     ${rows.length?'':'<p class="text-xs text-gray-500">අත්තිකාරම් සටහන් නැහැ.</p>'}</section>`;
 }
 
@@ -3761,7 +3819,7 @@ function bindSmartCashier(pane) {
 }
 function smartCashierMarkup(){
   const balances=calcCashierBalances();
-  return `<section class="rads-smart-cash"><div class="rads-smart-head"><div><h2>Cashier</h2><p>${todayISO()} · ${txt(FLOOR[ui.selectedCashierFloor])} අතේ Rs. ${currency(balances[ui.selectedCashierFloor])}</p></div>
+  return `<section class="rads-smart-cash"><div class="rads-smart-head"><div><h2>Cashier</h2><p>${todayISO()} · ${txt(cashierFloors()[ui.selectedCashierFloor])} අතේ Rs. ${currency(balances[ui.selectedCashierFloor])}</p></div>
     <button type="button" onclick="setPage('newbill')" class="rads-cash-primary">🖨️ අලුත් බිල</button></div>
     <div class="rads-cash-links"><button type="button" onclick="setPage('newbill');radsBillButton('plate')">Number Plate</button><button type="button" onclick="setPage('rates')">Board / සේවා මිල</button><button type="button" onclick="radsIssuePetty()">Petty Cash</button><button type="button" onclick="setPage('sales')">ආදායම් වාර්තා</button></div>
     <div class="rads-smart-find"><h3>බිල් සොයන්න හෝ ඉතිරි මුදල් ගන්න</h3>
@@ -3972,6 +4030,17 @@ render = function(){
     };});
     refreshPlateAlerts();
   }
+  const stockSearch=document.getElementById('rads-stock-search');
+  if(stockSearch){
+    const filter=()=>{
+      ui.stockSearch=stockSearch.value;
+      const query=stockSearch.value.trim().toLowerCase();
+      main.querySelectorAll('[data-stock-search]').forEach(row=>{row.hidden=!row.dataset.stockSearch.toLowerCase().includes(query);});
+    };
+    stockSearch.oninput=filter;
+    filter();
+  }
+  if(isBossOrFamily(ui.user))bindBulkSelection(main);
   if(ui.page==='yard'){
     main?.querySelectorAll('[data-yard-id]').forEach(button=>{button.onclick=()=>radsYardForm(button.dataset.yardId,button.dataset.yardMode);});
   }
@@ -4010,7 +4079,7 @@ render = function(){
       <label>අංක 4<input id="rads-plate-number" maxlength="4" inputmode="numeric" placeholder="2020" value="${txt(vehicle.number)}"></label>
       <label>Plate මිල (Rs.)<input id="rads-plate-price" type="number" min="0.01" step="0.01" value="${plate.price||''}"></label>
       <label>භාරදීමට පැය<input id="rads-plate-hours" type="number" min="0.01" max="8760" step="0.01" value="${txt(d.plateHours)}" placeholder="උදා: 2"></label></div>`:''}<label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>`;
-      for(const [id,key] of [['rads-branch','branch'],['rads-title','title']])document.getElementById(id).oninput=e=>{d[key]=e.target.value;};
+      for(const [id,key] of [['rads-branch','branch'],['rads-title','title']])document.getElementById(id).oninput=e=>{d[key]=e.target.value;recalcBillLive();};
       if(plate){
         document.getElementById('rads-plate-hours').oninput=e=>{d.plateHours=e.target.value;};
         const province=document.getElementById('rads-plate-province');
@@ -4020,6 +4089,7 @@ render = function(){
           prefix.value=prefix.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
           number.value=number.value.replace(/[^0-9]/g,'').slice(0,4);
           d.vehicle=((province.value?province.value+'-':'')+prefix.value+' '+number.value).trim();
+          recalcBillLive();
         };
         province.oninput=prefix.oninput=number.oninput=updateVehicle;
         province.onkeydown=e=>handleBillEnter(e,'rads-plate-prefix');
@@ -4029,7 +4099,7 @@ render = function(){
         price.oninput=()=>{plate.price=Number(price.value||0);if(unitPrice)unitPrice.value=price.value;syncBillPreviewItems();};
         unitPrice?.addEventListener('input',()=>{price.value=unitPrice.value;});
       }
-      document.getElementById('rads-job').onchange=e=>{d.createJob=e.target.checked;};
+      document.getElementById('rads-job').onchange=e=>{d.createJob=e.target.checked;recalcBillLive();};
     }
   }
 };
