@@ -992,6 +992,8 @@
     const cat=document.getElementById('nj_cat').value;
     const finish=document.getElementById('nj_finish').value;
     const designerId=document.getElementById('nj_designer').value;
+    const constructorName=document.getElementById('nj_constructor').value.trim();
+    if(constructorName.length>100)return alert('Constructor name එක අකුරු 100කට සීමා කරන්න.');
     const urgent=document.getElementById('nj_urgent').checked;
     if(!name||!designerId)return alert('Job නම සහ Designer තෝරන්න.');
     try{
@@ -1004,7 +1006,7 @@
         state.jobs.unshift({
           id:nextId(state.jobs,'',4),name,billNo,cat,urgent,date:todayISO(),finish:finish||todayISO(),
           creatorId:creator.id,giver:creator.name,creatorSection:creator.sector||creator.role,
-          designerId,designer:designer.name,constructor:'-',amount:linked?.total||0,bankPaid:0,
+          designerId,designer:designer.name,constructor:constructorName||'-',amount:linked?.total||0,bankPaid:0,
           steps:{Mashimant:true,Quotation:true,JobStart:true,DesignerSelect:true,ArtworkOk:false,Print:false,Constructor:false,WorkStart:false,JobComplete:false,Invoice:!!linked,Payment:linked?.status==='FULL PAID'}
         });
       });
@@ -1031,22 +1033,44 @@
     render();
   };
 
+  function teaAttendanceFor(person,date) {
+    return person.teaAttendance?.[date] ??
+      (person.lastMarkedDate===date ? Boolean(person.presentToday) : undefined);
+  }
+
   window.markAttendanceAndTea = async (staffId, isPresent) => {
-    const p = cloudData.staff.find(s => s.id === staffId);
-    if (!p) return;
-    const today = getColomboDate();
-    if (p.lastMarkedDate === today) return alert(`⚠️ ${p.name} හට අද (${today}) දිනයට දැනටමත් සටහන් කර ඇත!`);
-    p.lastMarkedDate = today;
-    p.presentToday = isPresent;
-    if (isPresent) {
-      p.teaEarned += 100;
-      cloudData.pendingTeaDeduction = (cloudData.pendingTeaDeduction || 0) + 100;
-      await saveCloud(`Marked ${p.name} Present (+Rs.100 Tea)`);
-    } else {
-      p.leaves = (p.leaves || 0) + 1;
-      await saveCloud(`Marked ${p.name} Leave (+1 Leave)`);
+    if (!isBillingRole()) return;
+    const date = ui.teaAttendanceDate || todayISO();
+    const parsed = new Date(date + 'T00:00:00Z');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime()) ||
+        parsed.toISOString().slice(0,10)!==date || date>todayISO()) {
+      return alert('අද හෝ කලින් දිනයක් තෝරන්න.');
     }
-    render();
+    try {
+      await commitUpdate(`Tea attendance: ${staffId} ${date} ${isPresent?'Present':'Leave'}`,(state,actor)=>{
+        if (!isManagerOrCashier(actor)) throw Error('Cashier access අවශ්‍යයි.');
+        const person=state.staff.find(member=>member.id===staffId&&!member.isFamily);
+        if (!person) throw Error('සේවකයා හමු වුණේ නැහැ.');
+        if (teaAttendanceFor(person,date)!==undefined) throw Error('මේ දිනය දැනටමත් සටහන් කර ඇත.');
+        const history=person.teaAttendance ||= {};
+        if (person.lastMarkedDate && !Object.hasOwn(history,person.lastMarkedDate)) {
+          history[person.lastMarkedDate]=Boolean(person.presentToday);
+        }
+        history[date]=Boolean(isPresent);
+        if (!person.lastMarkedDate || date>person.lastMarkedDate) {
+          person.lastMarkedDate=date;
+          person.presentToday=Boolean(isPresent);
+        }
+        if (isPresent) {
+          person.teaEarned=Number(person.teaEarned||0)+100;
+          state.pendingTeaDeduction=Number(state.pendingTeaDeduction||0)+100;
+        } else {
+          person.leaves=Number(person.leaves||0)+1;
+        }
+      });
+    } catch (error) {
+      alert(error.message);
+    }
   };
 
   window.transferCashierToTeaPurse = async () => {
@@ -1562,10 +1586,16 @@
     }).join('');
   }
 
+  const closedTopAlerts = new Set();
+  window.closeTopAlert = key => {
+    closedTopAlerts.add(JSON.stringify([ui.user?.id,todayISO(),key]));
+    render();
+  };
+
   function renderTopBarAndAlerts() {
     const u = ui.user;
     const pendingPrintsCount = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length;
-    const alerts = getActiveAlerts();
+    const alerts = getActiveAlerts().filter(alert=>!closedTopAlerts.has(JSON.stringify([u.id,todayISO(),alert.key])));
 
     return `
       <div class="brand-header text-white shadow-lg sticky top-0 z-40">
@@ -1620,6 +1650,8 @@
               <div class="flex gap-1.5">
                 <button onclick="openWhatsApp('', '${a.waText.replace(/'/g, "\\'")}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold">📲 WhatsApp</button>
                 ${!a.noDismiss ? `<button onclick="cloudData.remindersDone['${a.key}']=true; saveCloud('Done reminder: ${a.key}'); render();" class="bg-gray-900 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold">✅ Done</button>` : ''}
+                <button type="button" data-alert-key="${txt(a.key)}" onclick="closeTopAlert(this.dataset.alertKey)"
+                  class="rounded-lg border border-current px-2 py-1 font-bold" aria-label="Close alert" title="Close alert">×</button>
               </div>
             </div>
           `).join('')}
@@ -2285,6 +2317,9 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
                 <option value="">Designer තෝරන්න</option>
                 ${cloudData.staff.filter(s=>s.role==='Designer'&&!s.disabled).map(s=>`<option value="${txt(s.id)}">${txt(s.name)}</option>`).join('')}
               </select>
+              <label class="col-span-2 text-xs font-bold">Constructor Name
+                <input id="nj_constructor" type="text" maxlength="100" placeholder="වැඩේ භාර කෙනාගේ නම" class="mt-1 w-full border rounded-lg px-2.5 py-1.5" />
+              </label>
               <input id="nj_finish" type="date" value="${getColomboDate()}" class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
             </div>
             <div class="flex justify-between items-center pt-1">
@@ -2314,6 +2349,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
                   <div class="text-xs font-bold flex flex-wrap items-center gap-2">
                     ${isBossOrFamily(ui.user)?`<button type="button" class="text-red-700 underline" onclick="radsDeleteJob(this.dataset.job)" data-job="${txt(j.id)}">Delete Job</button>`:''}
                     <span>Finish: <b class="text-red-600">${txt(j.finish)}</b> | Designer: <b>${txt(staffDisplay(j.designerId,j.designer))}</b> | Added by: <b>${txt(staffDisplay(j.creatorId,j.giver))}</b> · ${txt(j.creatorSection)}</span>
+                    ${j.constructor&&j.constructor!=='-'?`<span>Constructor <b>${txt(j.constructor)}</b></span>`:''}
                     ${!designerMode ? `<span class="text-cyan-800">🏦 Bank Paid: Rs.${j.bankPaid || 0}</span>` : ''}
                     ${!designerMode ? `<button onclick="addJobBankTransfer(${jIdx})" class="bg-cyan-700 text-white px-2 py-0.5 rounded text-[11px]">🏦 + Bank Transfer</button>` : ''}
                   </div>
@@ -2342,6 +2378,36 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
     `;
   }
 
+  window.addQuotationPhoto = async input => {
+    const file=input.files?.[0];
+    if (!file) return;
+    const draft=ui.draftQuote;
+    const request={};
+    draft.photoRequest=request;
+    const url=URL.createObjectURL(file);
+    try {
+      const image=new Image();
+      image.src=url;
+      await image.decode();
+      const scale=Math.min(1,1400/Math.max(image.naturalWidth,image.naturalHeight));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+      canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#fff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(image,0,0,canvas.width,canvas.height);
+      if (draft.photoRequest!==request) return;
+      draft.photo=canvas.toDataURL('image/jpeg',0.88);
+      if (ui.page==='quotation') render();
+    } catch (error) {
+      if (draft.photoRequest===request) alert('Photo එක විවෘත කළ නොහැක. JPG හෝ PNG එකක් තෝරන්න.');
+    } finally {
+      URL.revokeObjectURL(url);
+      input.value='';
+    }
+  };
+
   function renderQuotation() {
     const dq = ui.draftQuote;
     const total = dq.items.reduce((s, it) => s + (Number(it.qty) * Number(it.price)), 0);
@@ -2349,6 +2415,12 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
       <div class="max-w-5xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div class="lg:col-span-6 bg-white p-4 rounded-2xl shadow border space-y-3">
           <h2 class="font-black text-sm">📄 1-CLICK QUOTATION GENERATOR</h2>
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="font-bold">Quotation Photo
+              <input type="file" accept="image/*" onchange="addQuotationPhoto(this)" class="block text-xs">
+            </label>
+            ${dq.photo?`<button type="button" class="underline text-red-700" onclick="delete ui.draftQuote.photo; delete ui.draftQuote.photoRequest; render()">Remove Photo</button>`:''}
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <input type="text" value="${dq.customer}" oninput="ui.draftQuote.customer=this.value; render();" placeholder="Client / Company / Temple" class="border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
             <input type="text" value="${dq.custPhone}" oninput="ui.draftQuote.custPhone=this.value; render();" placeholder="WhatsApp Number" class="border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
@@ -2398,6 +2470,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
             <tr class="bg-gray-100 border-y"><th class="p-1.5 text-left">Item Description</th><th class="p-1.5 text-right">Amount</th></tr>
             ${dq.items.map(it => `<tr class="border-b"><td class="p-1.5">${it.name || '-'}</td><td class="p-1.5 text-right font-bold">Rs. ${it.qty * it.price}</td></tr>`).join('')}
           </table>
+          ${dq.photo?`<div class="my-3" style="break-inside:avoid"><img src="${dq.photo}" alt="Quotation photo" style="display:block;max-width:100%;max-height:56mm;object-fit:contain;margin:auto"></div>`:''}
           <div class="text-right font-black text-base text-[#E31E24]">TOTAL ESTIMATE: Rs. ${total.toLocaleString()}</div>
           <div class="text-[10px] text-gray-500 mt-6 pt-2 border-t text-center">Medirigiriya • Next Branch Hingurakgoda.</div>
         </div>
@@ -2490,6 +2563,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
   function renderTeaMoney() {
     const u = ui.user;
     const isMgr = isManagerOrCashier(u);
+    const selectedDate = isMgr ? ui.teaAttendanceDate || todayISO() : todayISO();
     const visibleStaff = isMgr ? cloudData.staff.filter(s => !s.isFamily) : cloudData.staff.filter(s => s.id === u.id);
 
     return `
@@ -2497,6 +2571,12 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
         <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
           <div>
             <h2 class="font-black text-base">☕ TEA MONEY, TEA PURSE & LEAVE TRACKER</h2>
+            <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              ${isMgr?`<label for="tea-attendance-date" class="font-bold">Mark කරන දිනය</label>
+                <input id="tea-attendance-date" type="date" class="border rounded p-2 font-bold" value="${txt(selectedDate)}" max="${todayISO()}" required
+                  onchange="if(this.checkValidity()){ui.teaAttendanceDate=this.value; render();}else{this.reportValidity();this.value=this.defaultValue;}">`
+                :`<span>දිනය <strong>${selectedDate}</strong></span>`}
+            </div>
             <p class="text-xs text-gray-500">Present = +Rs.100 | Leave = Rs.0 (+1 Leave)</p>
           </div>
           <div class="flex gap-2">
@@ -2521,21 +2601,21 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
 
         <div class="bg-white p-4 rounded-2xl shadow border overflow-x-auto">
           <table class="w-full text-xs text-left">
-            <thead class="bg-gray-100 font-black"><tr><th class="p-2">Name</th><th class="p-2">Today</th><th class="p-2">Leaves</th><th class="p-2">Earned</th><th class="p-2">Taken</th><th class="p-2">Remaining</th><th class="p-2">Actions</th></tr></thead>
+            <thead class="bg-gray-100 font-black"><tr><th class="p-2">Name</th><th class="p-2">${selectedDate}</th><th class="p-2">Leaves</th><th class="p-2">Earned</th><th class="p-2">Taken</th><th class="p-2">Remaining</th><th class="p-2">Actions</th></tr></thead>
             <tbody>
               ${visibleStaff.map(s => {
                 const rem = s.teaEarned - s.teaTaken;
-                const markedToday = s.lastMarkedDate === getColomboDate();
+                const attendance = teaAttendanceFor(s,selectedDate);
                 return `
                   <tr class="border-b">
                     <td class="p-2 font-black">${s.name} (${s.id})</td>
-                    <td class="p-2">${markedToday ? (s.presentToday ? '<span class="text-green-700 font-bold">✅ Present</span>' : '<span class="text-red-600 font-bold">❌ Leave</span>') : '<span class="text-gray-400">Not Marked</span>'}</td>
+                    <td class="p-2">${attendance!==undefined ? (attendance ? '<span class="text-green-700 font-bold">✅ Present</span>' : '<span class="text-red-600 font-bold">❌ Leave</span>') : '<span class="text-gray-400">Not Marked</span>'}</td>
                     <td class="p-2 font-bold text-rose-700">${s.leaves || 0} Days</td>
                     <td class="p-2 font-bold">Rs. ${s.teaEarned}</td>
                     <td class="p-2 font-bold">Rs. ${s.teaTaken}</td>
                     <td class="p-2 font-black text-blue-700">Rs. ${rem}</td>
                     <td class="p-2 flex flex-wrap gap-1">
-                      ${isMgr ? `<button onclick="markAttendanceAndTea('${s.id}', true)" class="bg-emerald-600 text-white px-2 py-1 rounded font-bold">Present</button><button onclick="markAttendanceAndTea('${s.id}', false)" class="bg-rose-600 text-white px-2 py-1 rounded font-bold">Leave</button>` : ''}
+                      ${isMgr && attendance===undefined ? `<button onclick="markAttendanceAndTea('${s.id}', true)" class="bg-emerald-600 text-white px-2 py-1 rounded font-bold">Present</button><button onclick="markAttendanceAndTea('${s.id}', false)" class="bg-rose-600 text-white px-2 py-1 rounded font-bold">Leave</button>` : ''}
                       <button onclick="withdrawMyTeaMoney('${s.id}')" class="bg-blue-600 text-white px-2 py-1 rounded font-bold">Take Money</button>
                     </td>
                   </tr>
@@ -3817,10 +3897,121 @@ function bindSmartCashier(pane) {
   dueOnly.onchange=()=>{ui.cashierDueOnly=dueOnly.checked;update();};
   update();
 }
+function monthlyCashFlow(state) {
+  const [year,month] = todayISO().split('-').map(Number);
+  const months = Array.from({length:6},(_,index)=>{
+    const date = new Date(Date.UTC(year,month-6+index,1));
+    return {key:date.toISOString().slice(0,7),label:date.toLocaleDateString('en-LK',{month:'short',year:'2-digit',timeZone:'UTC'}),income:0,expenses:0};
+  });
+  const byMonth = new Map(months.map(row=>[row.key,row]));
+  const add = (entries,field)=>{
+    for(const entry of entries||[]){
+      const row=byMonth.get(String(entry.date||'').slice(0,7));
+      if(row)row[field]+=Number(entry.amount)||0;
+    }
+  };
+  add(paymentRows(state),'income');
+  add(state.bankTransfers,'income');
+  add((state.extraWorks||[]).filter(entry=>!entry.voidDetails&&entry.kind!=='withdrawal'),'expenses');
+  add(state.teaTransfers,'expenses');
+  return months.map(row=>({...row,income:fixed(row.income),expenses:fixed(row.expenses),net:fixed(row.income-row.expenses)}));
+}
+function renderCashFlowMonitor(root) {
+  const rows=monthlyCashFlow(cloudData);
+  const current=rows.at(-1);
+  const series=[['income','ලැබීම්','#047857'],['expenses','වියදම්','#b91c1c'],['net','ශුද්ධ මුදල් ප්‍රවාහය','#1d4ed8']];
+  root.innerHTML=`<section class="bg-white border rounded-xl p-4 space-y-3">
+    <h2 class="font-black">මාසික ලැබීම් සහ වියදම්</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">${series.map(([key,label,color])=>`<div class="bg-slate-50 border rounded-lg p-3">
+      <span class="text-sm">${current.label} · ${label}</span><strong class="block text-lg" style="color:${color}">Rs. ${currency(current[key])}</strong></div>`).join('')}</div>
+    <canvas width="880" height="280" class="block w-full h-auto" role="img" aria-label="මාස හයක ලැබීම්, වියදම් සහ ශුද්ධ මුදල් ප්‍රවාහය"></canvas>
+    <div class="flex flex-wrap gap-4 text-sm">${series.map(([,label,color])=>`<span style="color:${color}">● ${label}</span>`).join('')}</div>
+    <div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead><tr><th>මාසය</th><th>ලැබීම්</th><th>වියදම්</th><th>ශුද්ධ මුදල</th></tr></thead>
+    <tbody>${rows.map(row=>`<tr class="border-t"><td>${row.label}</td><td>Rs. ${currency(row.income)}</td><td>Rs. ${currency(row.expenses)}</td><td>Rs. ${currency(row.net)}</td></tr>`).join('')}</tbody></table></div>
+    <p class="text-xs text-gray-600">ශුද්ධ මුදල් ප්‍රවාහය = සටහන් කළ ලැබීම් − සටහන් කළ වියදම් සහ තේ.</p></section>`;
+  const canvas=root.querySelector('canvas');
+  const ctx=canvas.getContext('2d');
+  if(!ctx)return;
+  const values=rows.flatMap(row=>series.map(([key])=>row[key]));
+  const min=Math.min(0,...values),max=Math.max(1,...values);
+  const left=92,right=850,top=24,bottom=235;
+  const x=index=>left+(right-left)*index/(rows.length-1);
+  const y=value=>bottom-(value-min)/(max-min)*(bottom-top);
+  const axis=new Intl.NumberFormat('en-LK',{notation:'compact',maximumFractionDigits:1});
+  ctx.font='15px sans-serif';
+  ctx.fillStyle='#475569';
+  for(let tick=0;tick<=4;tick++){
+    const value=min+(max-min)*tick/4;
+    ctx.strokeStyle='#e2e8f0';
+    ctx.beginPath();ctx.moveTo(left,y(value));ctx.lineTo(right,y(value));ctx.stroke();
+    ctx.fillText('Rs. '+axis.format(value),5,y(value)+4);
+  }
+  ctx.strokeStyle='#94a3b8';
+  ctx.beginPath();ctx.moveTo(left,y(0));ctx.lineTo(right,y(0));ctx.stroke();
+  ctx.textAlign='center';
+  rows.forEach((row,index)=>ctx.fillText(row.label,x(index),263));
+  for(const [key,,color] of series){
+    ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=3;
+    ctx.beginPath();
+    rows.forEach((row,index)=>{if(index===0)ctx.moveTo(x(index),y(row[key]));else ctx.lineTo(x(index),y(row[key]));});
+    ctx.stroke();
+    rows.forEach((row,index)=>{ctx.beginPath();ctx.arc(x(index),y(row[key]),4,0,2*Math.PI);ctx.fill();});
+  }
+}
+function cashierMonitor(balances) {
+  const counters = Object.entries(cashierFloors());
+  const money = amount => 'Rs. ' + currency(amount);
+  const cash = balances.todayCashIncome;
+  const bank = balances.todayBankIncome;
+  const totalReceipts = cash + bank;
+  const cashPercent = totalReceipts > 0 ? 100 * cash / totalReceipts : 0;
+  const ring = totalReceipts > 0
+    ? `conic-gradient(#047857 0% ${cashPercent}%, #0369a1 ${cashPercent}% 100%)`
+    : '#e2e8f0';
+  const cards = [
+    ['Total Cash Balance', balances.Total, 'bg-slate-900'],
+    ['Cash ලැබීම්', cash, 'bg-emerald-800'],
+    ['Bank ලැබීම්', bank, 'bg-sky-800'],
+    ['වියදම් සහ තේ', balances.todayExpenses + balances.todayTeaDeducted, 'bg-rose-800']
+  ];
+
+  return `<div class="mt-4 space-y-3">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      ${cards.map(([label,amount,color])=>`<div class="${color} rounded-xl p-3 text-white">
+        <p class="text-xs">${label}</p><strong class="block mt-1 text-base sm:text-xl">${money(amount)}</strong>
+      </div>`).join('')}
+    </div>
+    <h3 class="font-black">Counter අනුව Cash Balance</h3>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      ${counters.map(([id,label])=>`<button type="button" data-monitor-counter="${txt(id)}" aria-pressed="${id===ui.selectedCashierFloor}"
+        class="rounded-lg border bg-white p-2 text-left hover:border-emerald-600 ${id===ui.selectedCashierFloor?'ring-2 ring-emerald-700':''}">
+        <span class="block break-words text-xs">${txt(label)}</span>
+        <strong class="block ${balances[id]<0?'text-red-700':''}">${money(balances[id])}</strong>
+      </button>`).join('')}
+    </div>
+    <div class="grid lg:grid-cols-2 gap-3">
+      ${monitorBars('Cash Balance සංසන්දනය', counters.map(([id,label])=>[txt(label),fixed(balances[id])]),1,money)}
+      <section class="rounded-xl border bg-white p-4">
+        <h3 class="font-black mb-3">අද ලැබීම් · Cash සහ Bank</h3>
+        <div class="flex flex-wrap items-center gap-4">
+          <div aria-hidden="true" class="grid h-24 w-24 place-items-center rounded-full" style="background:${ring}">
+            <div class="h-14 w-14 rounded-full bg-white"></div>
+          </div>
+          <dl class="text-sm">
+            <div class="flex gap-2"><dt class="font-bold text-emerald-800">Cash</dt><dd>${money(cash)}</dd></div>
+            <div class="flex gap-2"><dt class="font-bold text-sky-800">Bank</dt><dd>${money(bank)}</dd></div>
+            <div class="flex gap-2 border-t mt-1 pt-1"><dt class="font-bold">එකතුව</dt><dd>${money(totalReceipts)}</dd></div>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>`;
+}
 function smartCashierMarkup(){
   const balances=calcCashierBalances();
   return `<section class="rads-smart-cash"><div class="rads-smart-head"><div><h2>Cashier</h2><p>${todayISO()} · ${txt(cashierFloors()[ui.selectedCashierFloor])} අතේ Rs. ${currency(balances[ui.selectedCashierFloor])}</p></div>
     <button type="button" onclick="setPage('newbill')" class="rads-cash-primary">🖨️ අලුත් බිල</button></div>
+    ${cashierMonitor(balances)}
     <div class="rads-cash-links"><button type="button" onclick="setPage('newbill');radsBillButton('plate')">Number Plate</button><button type="button" onclick="setPage('rates')">Board / සේවා මිල</button><button type="button" onclick="radsIssuePetty()">Petty Cash</button><button type="button" onclick="setPage('sales')">ආදායම් වාර්තා</button></div>
     <div class="rads-smart-find"><h3>බිල් සොයන්න හෝ ඉතිරි මුදල් ගන්න</h3>
     <input type="search" data-cash-search aria-label="බිල් සොයන්න" placeholder="Bill No / WhatsApp / නම / වාහන අංකය">
@@ -4040,7 +4231,6 @@ render = function(){
     stockSearch.oninput=filter;
     filter();
   }
-  if(isBossOrFamily(ui.user))bindBulkSelection(main);
   if(ui.page==='yard'){
     main?.querySelectorAll('[data-yard-id]').forEach(button=>{button.onclick=()=>radsYardForm(button.dataset.yardId,button.dataset.yardMode);});
   }
@@ -4048,10 +4238,18 @@ render = function(){
     main?.insertAdjacentHTML('afterbegin',`<div class="mx-3 mt-3 p-3 bg-white border rounded-xl"><button type="button" class="font-bold underline" onclick="setPage('yard')">Yard Stock</button> · ${(cloudData.yardStock||[]).length} වර්ග · අඩු තොග ${yardLow(cloudData).length}</div>`);
   }
   if(ui.page==='sales')bindSalesReport();
+  if(ui.page==='report'&&isBillingRole()){
+    const report=document.getElementById('report-print-area');
+    if(report){
+      const monitor=document.createElement('div');
+      report.before(monitor);
+      renderCashFlowMonitor(monitor);
+    }
+  }
   if(isBillingRole()&&!ui.tvMode){
     const quick=document.createElement('button');
-    quick.type='button';quick.className='rads-quick-bill';quick.textContent='🖨️ බිල';
-    quick.setAttribute('aria-label','අලුත් බිලක් සාදන්න');
+    quick.type='button';quick.className='rads-quick-bill';quick.textContent='🖨️ Bill +';
+    quick.setAttribute('aria-label','Bill + — අලුත් බිලක් සාදන්න');
     quick.onclick=()=>{if(ui.page!=='newbill')setPage('newbill');document.getElementById('bill_cust_name')?.focus();};
     document.getElementById('app').append(quick);
     if(ui.page==='cashier'){
@@ -4060,9 +4258,19 @@ render = function(){
       home?.insertAdjacentHTML('beforeend',pettyMarkup());
       const pane=home?.querySelector('.rads-smart-cash');
       if(pane)bindSmartCashier(pane);
+      pane?.querySelectorAll('[data-monitor-counter]').forEach(button=>{
+        button.onclick=()=>{
+          const counter=button.dataset.monitorCounter;
+          if(!Object.hasOwn(cashierFloors(),counter))return;
+          ui.selectedCashierFloor=counter;
+          ui.draftBill.floor=counter;
+          render();
+        };
+      });
       home?.querySelectorAll('[data-petty-id]').forEach(button=>{button.onclick=()=>radsSettlePetty(button.dataset.pettyId);});
     }
   }
+  if(isBossOrFamily(ui.user))bindBulkSelection(main);
   if(ui.page==='newbill'){
     const d=ui.draftBill;
     const holder=document.getElementById('rads-extra-bill');
