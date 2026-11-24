@@ -1755,34 +1755,19 @@
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
         ${isBossOrFamily(u) ? `
-          <div class="bg-[#111111] text-white rounded-2xl p-5 shadow-xl border border-gray-800">
-            <div class="flex justify-between items-center mb-3">
-              <span class="text-xs font-black text-[#E31E24] uppercase tracking-wider">👑 BOSS 1-SCREEN MONEY PULSE (${getColomboDate()})</span>
-              <button onclick="ui.tvMode=true; render();" class="bg-[#E31E24] hover:bg-red-700 px-3 py-1 rounded-lg text-xs font-black">📺 Full TV Mode</button>
+          <section class="rads-smart-cash" aria-label="Boss Monitor">
+            <div class="rads-smart-head">
+              <div><h2>Boss Monitor</h2><p>${getColomboDate()}</p></div>
+              <button type="button" onclick="ui.tvMode=true; render();" class="rads-cash-primary">📺 Full TV Mode</button>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5">
-              <div class="bg-white/5 p-3 rounded-xl">
-                <span class="text-[10px] text-gray-400 block">Cash Drawer</span>
-                <span class="text-lg font-black text-emerald-400">Rs. ${bals.Total.toLocaleString()}</span>
-              </div>
-              <div class="bg-white/5 p-3 rounded-xl">
-                <span class="text-[10px] text-gray-400 block">Bank Transfers</span>
-                <span class="text-lg font-black text-cyan-400">Rs. ${bals.todayBankIncome.toLocaleString()}</span>
-              </div>
-              <div class="bg-white/5 p-3 rounded-xl">
-                <span class="text-[10px] text-gray-400 block">Today Petty Cash</span>
-                <span class="text-lg font-black text-rose-400">Rs. ${todayPettyCash.toLocaleString()}</span>
-              </div>
-              <div class="bg-white/5 p-3 rounded-xl">
-                <span class="text-[10px] text-gray-400 block">Customer ණය</span>
-                <span class="text-lg font-black text-amber-400">Rs. ${mStats.totalCustomerDues.toLocaleString()}</span>
-              </div>
-              <div class="bg-white/5 p-3 rounded-xl">
-                <span class="text-[10px] text-gray-400 block">Monthly Income (1–30)</span>
-                <span class="text-lg font-black text-white">Rs. ${mStats.mIncome.toLocaleString()}</span>
-              </div>
+            ${cashierMonitor(bals,true)}
+            <div class="grid grid-cols-2 gap-2 mt-3">
+              <div class="rounded-lg border bg-white p-3"><span>Customer ණය</span><strong class="block">Rs. ${currency(mStats.totalCustomerDues)}</strong></div>
+              <div class="rounded-lg border bg-white p-3"><span>මේ මාසයේ ලැබීම්</span><strong class="block">Rs. ${currency(mStats.mIncome)}</strong></div>
             </div>
-          </div>
+          </section>
+          <div id="boss-cash-flow"></div>
+          ${monitorBars('ඉතිරි stock rolls',stockRolls(cloudData.stock),50,n=>String(n)+' rolls')}
         ` : ''}
 
         <div class="bg-white rounded-2xl p-5 shadow border space-y-4">
@@ -3958,7 +3943,7 @@ function renderCashFlowMonitor(root) {
     rows.forEach((row,index)=>{ctx.beginPath();ctx.arc(x(index),y(row[key]),4,0,2*Math.PI);ctx.fill();});
   }
 }
-function cashierMonitor(balances) {
+function cashierMonitor(balances, readOnly=false) {
   const counters = Object.entries(cashierFloors());
   const money = amount => 'Rs. ' + currency(amount);
   const cash = balances.todayCashIncome;
@@ -3983,11 +3968,14 @@ function cashierMonitor(balances) {
     </div>
     <h3 class="font-black">Counter අනුව Cash Balance</h3>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
-      ${counters.map(([id,label])=>`<button type="button" data-monitor-counter="${txt(id)}" aria-pressed="${id===ui.selectedCashierFloor}"
-        class="rounded-lg border bg-white p-2 text-left hover:border-emerald-600 ${id===ui.selectedCashierFloor?'ring-2 ring-emerald-700':''}">
-        <span class="block break-words text-xs">${txt(label)}</span>
-        <strong class="block ${balances[id]<0?'text-red-700':''}">${money(balances[id])}</strong>
-      </button>`).join('')}
+      ${counters.map(([id,label])=>{
+        const content=`<span class="block break-words text-xs">${txt(label)}</span>
+          <strong class="block ${balances[id]<0?'text-red-700':''}">${money(balances[id])}</strong>`;
+        const className='rounded-lg border bg-white p-2 text-left';
+        return readOnly?`<div class="${className}">${content}</div>`:
+          `<button type="button" data-monitor-counter="${txt(id)}" aria-pressed="${id===ui.selectedCashierFloor}"
+            class="${className} hover:border-emerald-600 ${id===ui.selectedCashierFloor?'ring-2 ring-emerald-700':''}">${content}</button>`;
+      }).join('')}
     </div>
     <div class="grid lg:grid-cols-2 gap-3">
       ${monitorBars('Cash Balance සංසන්දනය', counters.map(([id,label])=>[txt(label),fixed(balances[id])]),1,money)}
@@ -4203,7 +4191,7 @@ render = function(){
   const appRoot=document.getElementById('app');
   appRoot.insertAdjacentHTML(main?'afterbegin':'beforeend','<div id="rads-tuesday-reminder" hidden class="bg-yellow-100 text-black px-4 py-2 text-sm font-bold">🚛 අඟහරුවාදා පෙ.ව. 9:15 · නගර සභා කුණු ලොරිය</div>');
   refreshTuesdayReminder();
-  if(isBillingRole()&&(ui.page==='dashboard'||ui.tvMode)){
+  if(isBillingRole()&&((ui.page==='dashboard'&&!isBossOrFamily(ui.user))||ui.tvMode)){
     const panel=document.createElement('div');
     panel.className='max-w-7xl mx-auto px-4 pt-3';
     panel.innerHTML=renderMonitoringCharts();
@@ -4237,6 +4225,8 @@ render = function(){
   if(ui.page==='dashboard'){
     main?.insertAdjacentHTML('afterbegin',`<div class="mx-3 mt-3 p-3 bg-white border rounded-xl"><button type="button" class="font-bold underline" onclick="setPage('yard')">Yard Stock</button> · ${(cloudData.yardStock||[]).length} වර්ග · අඩු තොග ${yardLow(cloudData).length}</div>`);
   }
+  const bossCashFlow=document.getElementById('boss-cash-flow');
+  if(bossCashFlow)renderCashFlowMonitor(bossCashFlow);
   if(ui.page==='sales')bindSalesReport();
   if(ui.page==='report'&&isBillingRole()){
     const report=document.getElementById('report-print-area');
