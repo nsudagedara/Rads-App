@@ -4229,6 +4229,16 @@ function groundStockRows(state) {
   return [...starter, ...saved.filter(item => !starter.some(row => row.id === item.id))];
 }
 const groundIsLow = item => item.quantity !== null && item.lowAt !== null && item.quantity <= item.lowAt;
+const groundShortage = item => Math.max(0, Math.round((item.lowAt - item.quantity) * 1000) / 1000);
+function groundShortageReport(items, date) {
+  return [
+    'Ground Flow Stock · අඩු තොග වාර්තාව',
+    'දිනය: ' + date,
+    'අඩු තොග වර්ග: ' + items.length,
+    '',
+    ...items.map(item => `• ${item.name}: ඉතිරි ${yardNumber(item.quantity)} අඩි | අවම ${yardNumber(item.lowAt)} අඩි | සීමාවට මදි ${yardNumber(groundShortage(item))} අඩි`)
+  ].join('\n');
+}
 function groundWhatsApp(businessState) {
   const samila = businessState.staff.find(person => !person.disabled && /\bsamila\b/i.test(person.name));
   return clientPhone(samila?.tel);
@@ -4243,16 +4253,17 @@ function renderGroundFlowStock() {
       <h2 class="text-xl font-black">Ground Flow Stock</h2>
       <p class="my-2">අඩු තොග ${low.length} · සියලු ප්‍රමාණ අඩිවලින්</p>
       ${canEdit ? '<button type="button" class="rads-cash-primary" onclick="radsGroundStockChange()">+ Material එකතු කරන්න</button>' : ''}
-      ${low.length ? '<button type="button" class="rads-cash-primary ml-2" onclick="radsGroundWhatsApp()">Samilaට WhatsApp කරන්න</button>' : ''}
+      ${low.length ? '<button type="button" class="rads-cash-primary ml-2" onclick="radsGroundWhatsApp()">අඩු තොග වාර්තාව Samilaට යවන්න</button>' : ''}
       ${low.length && !groundWhatsApp(cloudData) ? '<p class="mt-2 text-red-700">Samilaගේ Staff Profile එකට WhatsApp අංකය ඇතුළත් කරන්න.</p>' : ''}
       <label class="block mt-3">Material සොයන්න <input type="search" class="border rounded p-2" data-ground-search></label>
       <div class="overflow-x-auto mt-3"><table class="w-full text-sm text-left">
-        <thead><tr><th>Material</th><th>ඉතිරි අඩි</th><th>අඩු තොග සීමාව</th><th>ක්‍රියාව</th></tr></thead>
+        <thead><tr><th>Material</th><th>ඉතිරි අඩි</th><th>අඩු තොග සීමාව</th><th>සීමාවට මදි අඩි</th><th>ක්‍රියාව</th></tr></thead>
         <tbody>${items.map(item => `<tr class="border-t" data-ground-item="${txt(item.name)}" data-ground-id="${txt(item.id)}">
           <th scope="row" class="py-2">${txt(item.name)}</th>
           <td>${item.quantity === null ? 'සටහන් කර නැහැ' : yardNumber(item.quantity)} ${groundIsLow(item) ? '<strong class="text-red-700">අඩුයි</strong>' : ''}</td>
           <td>${item.lowAt === null ? '—' : yardNumber(item.lowAt)}</td>
-          <td>${canEdit ? (item.quantity === null ? '<button type="button" class="underline" data-ground-action="setup">ආරම්භක තොගය දාන්න</button>' : '<button type="button" class="underline mr-2" data-ground-action="in">+ ලැබුණා</button><button type="button" class="underline mr-2" data-ground-action="out">− භාවිත කළා</button><button type="button" class="underline" data-ground-action="limit">සීමාව වෙනස් කරන්න</button>') : ''}</td>
+          <td>${groundIsLow(item) ? yardNumber(groundShortage(item)) : '—'}</td>
+          <td>${canEdit ? (item.quantity === null ? '<button type="button" class="underline" data-ground-action="setup">ආරම්භක තොගය දාන්න</button>' : '<button type="button" class="underline mr-2" data-ground-action="in">+ ලැබුණා</button><button type="button" class="underline mr-2" data-ground-action="out">− භාවිත කළා</button><button type="button" class="underline mr-2" data-ground-action="adjust">ඉතිරි අඩි වෙනස් කරන්න</button><button type="button" class="underline" data-ground-action="limit">සීමාව වෙනස් කරන්න</button>') : ''}</td>
         </tr>`).join('')}</tbody>
       </table></div></div></section>`;
 }
@@ -4262,10 +4273,11 @@ window.radsGroundWhatsApp = () => {
   if (!phone) return alert('Samilaගේ Staff Profile එකට WhatsApp අංකය ඇතුළත් කරන්න.');
   const low = groundStockRows(cloudData).filter(groundIsLow);
   if (!low.length) return;
-  openWhatsApp(phone, ['Ground Flow Stock · අඩු තොග', ...low.map(item => item.name + ' · ඉතිරි අඩි ' + yardNumber(item.quantity))].join('\n'));
+  openWhatsApp(phone, groundShortageReport(low, todayISO()));
 };
 window.radsGroundStockChange = async (action = 'new', id = '') => {
   if (!canUpdateStock(ui.user) || busyCounter) return;
+  if (!['new', 'setup', 'in', 'out', 'limit', 'adjust'].includes(action)) return;
   const current = groundStockRows(cloudData).find(item => item.id === id);
   if (action !== 'new' && !current) return;
   const name = action === 'new' ? prompt('Material නම')?.trim() : current.name;
@@ -4273,9 +4285,15 @@ window.radsGroundStockChange = async (action = 'new', id = '') => {
   try {
     if (name.length > 80) throw Error('Material නම අකුරු 80කට සීමා කරන්න.');
     const isSetup = action === 'new' || action === 'setup';
-    const raw = prompt(action === 'limit' ? 'අඩු තොග සීමාව (අඩි)' : isSetup ? 'ආරම්භක තොගය (අඩි)' : 'ප්‍රමාණය (අඩි)', action === 'limit' ? current.lowAt : '');
+    const prompts = {
+      limit: ['අඩු තොග සීමාව (අඩි)', current?.lowAt],
+      adjust: ['දැනට තියෙන සම්පූර්ණ අඩි ගණන', current?.quantity],
+      in: ['ලැබුණු අඩි ගණන', ''],
+      out: ['භාවිත කළ අඩි ගණන', '']
+    };
+    const raw = prompt(...(isSetup ? ['ආරම්භක තොගය (අඩි)', ''] : prompts[action]));
     if (raw === null) return;
-    const amount = yardQuantity(raw, isSetup || action === 'limit');
+    const amount = yardQuantity(raw, isSetup || action === 'limit' || action === 'adjust');
     const limit = isSetup ? prompt('අඩු තොග සීමාව (අඩි)', '0') : null;
     if (isSetup && limit === null) return;
     const lowAt = isSetup ? yardQuantity(limit, true) : null;
@@ -4298,7 +4316,10 @@ window.radsGroundStockChange = async (action = 'new', id = '') => {
       }
       if (item.quantity === null) throw Error('මුලින් ආරම්භක තොගය දාන්න.');
       if (action === 'limit') item.lowAt = amount;
-      else item.quantity = yardBalance(item.quantity, amount, action);
+      else if (action === 'adjust') {
+        if (item.quantity !== current.quantity) throw Error('තොගය වෙනස් වී තිබෙනවා. අලුත් ගණන බලලා නැවත උත්සාහ කරන්න.');
+        item.quantity = amount;
+      } else item.quantity = yardBalance(item.quantity, amount, action);
     });
   } catch (error) {
     alert(error.message);
