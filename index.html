@@ -709,16 +709,34 @@
     render();
   };
 
+  function billDraftTotal(draft) {
+    return fixed(draft.items.reduce((sum,item)=>sum+Number(item.qty||0)*fixed(item.price||0),0)+Number(draft.serviceCharge||0));
+  }
+
+  function billCashPayment(draft,total) {
+    const tendered=Number(draft.cashTendered);
+    if(draft.pending||draft.payMethod!=='Cash'||!draft.cashTendered||!Number.isFinite(tendered)||tendered<0||!Number.isFinite(total)||total<0)return null;
+    return {paid:fixed(Math.min(total,tendered)),change:fixed(Math.max(0,tendered-total))};
+  }
+
   window.recalcBillLive = () => {
     const d = ui.draftBill;
-    const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
-    const total = itemsTotal + Number(d.serviceCharge || 0);
-    const adv = d.pending ? 0 : Number(d.advance || 0);
+    const total = billDraftTotal(d);
+    const cashPayment = billCashPayment(d,total);
+    const adv = d.pending ? 0 : cashPayment?.paid ?? Number(d.advance || 0);
     const bal = Math.max(0, total - adv);
 
     const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
     const receipt = document.getElementById('thermal-bill-print');
     if (receipt) receipt.innerHTML = draftReceipt(nextId(cloudData.bills,'RADS-',3));
+    const cashBox=document.getElementById('bill_cash_change_box');
+    if(cashBox)cashBox.hidden=d.pending||d.payMethod!=='Cash';
+    const advanceInput=document.getElementById('bill_advance_input');
+    if(advanceInput){
+      advanceInput.readOnly=Boolean(cashPayment);
+      if(cashPayment||document.activeElement!==advanceInput)advanceInput.value=cashPayment?String(adv):d.advance||'';
+    }
+    setTxt('bill_change_due',cashPayment?'Rs. '+currency(cashPayment.change):'—');
     setTxt('bill_total_disp', 'Rs. ' + total.toLocaleString());
     setTxt('bill_bal_disp', 'Rs. ' + bal.toLocaleString());
     setTxt('prev_total', 'Rs. ' + total.toLocaleString());
@@ -1851,9 +1869,9 @@
 
   function renderNewBill() {
     const d = ui.draftBill;
-    const itemsTotal = d.items.reduce((s, it) => s + (Number(it.qty || 0) * Number(it.price || 0)), 0);
-    const total = itemsTotal + Number(d.serviceCharge || 0);
-    const adv = d.pending ? 0 : Number(d.advance || 0);
+    const total = billDraftTotal(d);
+    const cashPayment = billCashPayment(d,total);
+    const adv = d.pending ? 0 : cashPayment?.paid ?? Number(d.advance || 0);
     const bal = Math.max(0, total - adv);
     const nextBillNo = nextId(cloudData.bills,'RADS-',3);
 
@@ -1887,7 +1905,7 @@
               </div>
               <div>
                 <label class="text-[11px] font-bold">Payment Mode</label>
-                <select id="bill_pay_mode" onchange="ui.draftBill.payMethod=this.value; recalcBillLive();"
+                <select id="bill_pay_mode" onchange="ui.draftBill.payMethod=this.value; if(this.value!=='Cash')ui.draftBill.cashTendered=''; recalcBillLive();"
                   onkeydown="handleBillEnter(event, 'draftBill_item_0')"
                   class="w-full border rounded-lg px-2 py-1.5 text-xs font-black bg-amber-50">
                   <option ${d.payMethod==='Cash'?'selected':''}>Cash</option>
@@ -1986,7 +2004,7 @@
             </div>
 
             <div class="bg-amber-50 border border-amber-300 p-2 rounded-lg flex items-center gap-2">
-              <input type="checkbox" id="chk_pend" ${d.pending ? 'checked' : ''} onchange="ui.draftBill.pending=this.checked; if(this.checked) ui.draftBill.advance=0; render();" />
+              <input type="checkbox" id="chk_pend" ${d.pending ? 'checked' : ''} onchange="ui.draftBill.pending=this.checked; if(this.checked){ui.draftBill.advance=0;ui.draftBill.cashTendered='';} render();" />
               <label for="chk_pend" class="text-xs font-black text-amber-950">Pending (ණයට — සල්ලි දුන්නේ නෑ / Advance = 0)</label>
             </div>
 
@@ -1997,7 +2015,7 @@
               </div>
               <div class="bg-blue-50 p-2 rounded-lg border border-blue-200">
                 <label class="text-[10px] font-bold block text-blue-900">PAID / ADVANCE</label>
-                <input id="bill_advance_input" type="number" ${d.pending ? 'disabled' : ''} value="${d.advance || ''}" placeholder="0"
+                <input id="bill_advance_input" type="number" ${d.pending ? 'disabled' : ''} ${cashPayment?'readonly':''} value="${cashPayment?adv:d.advance||''}" placeholder="0"
                   oninput="ui.draftBill.advance=Number(this.value||0); recalcBillLive();"
                   onkeydown="handleBillEnter(event, 'btn_save_print_bill')"
                   class="w-full border rounded px-2 py-0.5 text-sm font-black bg-white" />
@@ -2005,6 +2023,21 @@
               <div class="bg-red-50 p-2 rounded-lg border border-red-200">
                 <span class="text-[10px] font-bold block text-red-900">BALANCE (ඉතුරු)</span>
                 <span id="bill_bal_disp" class="text-base font-black text-red-700">Rs. ${bal.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div id="bill_cash_change_box" ${d.pending||d.payMethod!=='Cash'?'hidden':''}>
+              <div class="grid grid-cols-2 gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2">
+                <label for="bill_cash_tendered" class="text-xs font-bold">Customer දුන්න Cash
+                  <input id="bill_cash_tendered" type="number" min="0" step="0.01" inputmode="decimal"
+                    value="${txt(d.cashTendered)}" placeholder="15000"
+                    oninput="ui.draftBill.cashTendered=this.validity.valid?this.value:''; recalcBillLive();"
+                    onkeydown="handleBillEnter(event, 'btn_save_print_bill')"
+                    class="mt-1 w-full rounded border bg-white px-2 py-1 text-sm">
+                </label>
+                <div class="text-xs font-bold">ආපසු දෙන්න ඕන ඉතුරුව
+                  <output id="bill_change_due" class="mt-1 block text-lg font-black text-emerald-900" aria-live="polite">${cashPayment?'Rs. '+currency(cashPayment.change):'—'}</output>
+                </div>
               </div>
             </div>
 
@@ -3136,7 +3169,8 @@ function takeBillSnapshot() {
   if (!Object.hasOwn(cashierFloors(),d.floor)) throw Error('Cashier එක තෝරන්න.');
   d.serviceCharge = fixed(d.serviceCharge||0);
   d.total = fixed(d.items.reduce((sum,i)=>sum+i.price*i.qty,0)+d.serviceCharge);
-  d.paid = d.pending?0:fixed(d.advance||0);
+  d.paid = d.pending?0:billCashPayment(d,d.total)?.paid ?? fixed(d.advance||0);
+  delete d.cashTendered;
   if(!d.pending&&d.paid===0)throw Error('මුදල් ලැබුණා නම් Paid / Advance එකට දාන්න. මුදල් ලැබුණේ නැත්නම් “ගෙවීමක් නැහැ” තෝරන්න.');
   if (![d.serviceCharge,d.total,d.paid].every(Number.isFinite)||d.total<=0||d.serviceCharge<0||d.paid<0||d.paid>d.total) throw Error('Total, service charge සහ ගෙවූ මුදල පරීක්ෂා කරන්න.');
   d.balance = fixed(d.total-d.paid);
@@ -3147,8 +3181,8 @@ function takeBillSnapshot() {
 }
 function draftReceipt(id) {
   const d = ui.draftBill;
-  const total = fixed(d.items.reduce((sum,item)=>sum+Number(item.qty||0)*Number(item.price||0),0)+Number(d.serviceCharge||0));
-  const paid = d.pending ? 0 : Number(d.advance||0);
+  const total = billDraftTotal(d);
+  const paid = d.pending ? 0 : billCashPayment(d,total)?.paid ?? Number(d.advance||0);
   return printableBill({...d,id,date:todayISO(),cashier:ui.user.name,floor:d.items.some(isPlate)?'Ground':d.floor,total,paid,balance:Math.max(0,total-paid)},true);
 }
 function printableBill(b,draft=false) {
