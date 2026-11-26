@@ -2081,9 +2081,10 @@ window.transferCashierToTeaPurse = async () => {
               </div>
               <div>
                 <label class="text-[11px] font-bold">Cash Register</label>
-                <select onchange="ui.draftBill.floor=this.value; recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
+                <select onchange="ui.draftBill.floor=this.value; ui.selectedCashierFloor=this.value; recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
                   ${cashierOptions(d.floor)}
                 </select>
+                <div class="mt-1 px-2 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-black">💰 මේ Bill එකේ සල්ලි එකතු වෙන්නේ: ${txt(cashierFloors()[d.floor]||d.floor)} Cashier එකට</div>
               </div>
             </div>
 
@@ -3322,6 +3323,9 @@ function takeBillSnapshot() {
   const inputPhone = String(d.custPhone||'').trim();
   d.custPhone = clientPhone(inputPhone);
   if (inputPhone && !d.custPhone) throw Error('WhatsApp අංකය පරීක්ෂා කරන්න.');
+  // FIX: Bill එකේ Cashier = NEW BILL Cash Register dropdown එක. Cash Balance එකේ Blue selection එකත් ඒකටම sync කරන්න.
+  if(d.floor && Object.hasOwn(cashierFloors(),d.floor)) ui.selectedCashierFloor = d.floor;
+  else d.floor = ui.selectedCashierFloor;
   const isReasonOnly = !!d.reasonOnly;
   let items = d.items.filter(i => String(i.name||i.baseName||'').trim());
   if (isReasonOnly) {
@@ -3337,7 +3341,7 @@ function takeBillSnapshot() {
     const w = Number(i.w||0), h = Number(i.h||0);
     const qty = Number(i.qty), price = fixed(i.price);
     if (!Number.isSafeInteger(qty)||qty<1||!Number.isFinite(price)||price<=0||w<0||h<0||!!w!==!!h) throw Error('Item size, quantity සහ unit price පරීක්ෂා කරන්න.');
-    return {...i,qty,price,section:workSection(i)};
+    return {...i,qty,price,section:(i.reasonOnly ? (cashierFloors()[d.floor]||d.floor) : workSection(i))};
   });
   if (d.items.some(isPlate) && (d.customer==='-' || !d.custPhone || !d.vehicle?.trim())) throw Error('Number Plate සඳහා නම, WhatsApp අංකය සහ vehicle number එක දාන්න.');
   if (items.some(isPlate)) {
@@ -3378,11 +3382,12 @@ function printableBill(b,draft=false) {
     ${b.custPhone?`<div>WhatsApp: ${txt(b.custPhone)}</div>`:''}
     ${b.vehicle?`<div>Vehicle: ${txt(b.vehicle)}</div>`:''}
     <div>Cashier: ${txt(b.cashier)}${section?' ('+txt(section)+')':''}</div>
+    <div style="font-weight:900;color:#1d4ed8">💰 මුදල් එකතු වෙන්නේ: ${txt(cashierFloors()[b.floor]||b.floor||section||'')} Cashier එකට</div>
     <div>Payment: ${txt(b.payMethod||'Cash')}</div><hr>
     ${b.items.map(i=>{
       const hasRate=Number(i.rate)>0;
       const unit=hasRate&&Number(i.w)>0&&Number(i.h)>0?'sq ft':'unit';
-      return `<div>${txt(i.name||i.baseName||'Item')}${draft&&i.section?' · '+txt(i.section):''}</div>
+      return `<div>${txt(i.name||i.baseName||'Item')}${draft&&i.section?(i.reasonOnly?' · Cashier: '+txt(i.section):' · Work: '+txt(i.section)):''}</div>
         <div style="font-size:12px">Rate: Rs. ${currency(hasRate?i.rate:i.price)} / ${unit}</div>
         <div class="rads-line"><span>${txt(i.qty)} × ${currency(i.price)}</span><span>${currency(i.qty*i.price)}</span></div>`;
     }).join('')}
@@ -3446,7 +3451,7 @@ window.saveNewBill = (printAfter=false) => {
   try {d=takeBillSnapshot();} catch(err){return alert(err.message);}
   savedReceipt=null;
   const request=uuid();
-  review.innerHTML=`<h2>බිල තහවුරු කරන්න</h2><p>විස්තර සහ cashier එක පරීක්ෂා කරන්න.</p>${printableBill(d,true)}
+  review.innerHTML=`<h2>බිල තහවුරු කරන්න</h2><p style="background:#2563eb;color:#fff;font-weight:900;padding:8px 10px;border-radius:10px">💰 මේ Bill එකේ සල්ලි එකතු වෙන්නේ: ${txt(cashierFloors()[d.floor]||d.floor)} Cashier එකට</p><p>විස්තර සහ cashier එක පරීක්ෂා කරන්න.</p>${printableBill(d,true)}
   <label><input type="checkbox" id="rads-reviewed"> මම විස්තර පරීක්ෂා කළා</label><p role="alert" id="rads-error"></p>
   <div class="rads-actions"><button type="button" data-edit>ආපසු සංස්කරණය</button><button type="button" data-save disabled>${printAfter?'තහවුරු කර Save & Print':'තහවුරු කර Save'}</button></div>`;
   const approve = review.querySelector('[data-save]');
@@ -3829,7 +3834,7 @@ window.radsBillButton = (type) => {
     const plate={baseName:'Number Plate',name:'Number Plate',qty:1,price:0,w:'',h:'',rate:''};
     const blank=d.items.findIndex(item=>!item.name&&!item.baseName);
     if(blank>=0)d.items.splice(blank,1,plate);else d.items.push(plate);
-    d.floor='Ground';
+    d.floor='Ground'; ui.selectedCashierFloor='Ground';
   }
   if(type==='paid'){
     d.pending=false;
@@ -6761,9 +6766,10 @@ window.transferCashierToTeaPurse = async () => {
               </div>
               <div>
                 <label class="text-[11px] font-bold">Cash Register</label>
-                <select onchange="ui.draftBill.floor=this.value; recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
+                <select onchange="ui.draftBill.floor=this.value; ui.selectedCashierFloor=this.value; recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
                   ${cashierOptions(d.floor)}
                 </select>
+                <div class="mt-1 px-2 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-black">💰 මේ Bill එකේ සල්ලි එකතු වෙන්නේ: ${txt(cashierFloors()[d.floor]||d.floor)} Cashier එකට</div>
               </div>
             </div>
 
@@ -8002,6 +8008,9 @@ function takeBillSnapshot() {
   const inputPhone = String(d.custPhone||'').trim();
   d.custPhone = clientPhone(inputPhone);
   if (inputPhone && !d.custPhone) throw Error('WhatsApp අංකය පරීක්ෂා කරන්න.');
+  // FIX: Bill එකේ Cashier = NEW BILL Cash Register dropdown එක. Cash Balance එකේ Blue selection එකත් ඒකටම sync කරන්න.
+  if(d.floor && Object.hasOwn(cashierFloors(),d.floor)) ui.selectedCashierFloor = d.floor;
+  else d.floor = ui.selectedCashierFloor;
   const isReasonOnly = !!d.reasonOnly;
   let items = d.items.filter(i => String(i.name||i.baseName||'').trim());
   if (isReasonOnly) {
@@ -8017,7 +8026,7 @@ function takeBillSnapshot() {
     const w = Number(i.w||0), h = Number(i.h||0);
     const qty = Number(i.qty), price = fixed(i.price);
     if (!Number.isSafeInteger(qty)||qty<1||!Number.isFinite(price)||price<=0||w<0||h<0||!!w!==!!h) throw Error('Item size, quantity සහ unit price පරීක්ෂා කරන්න.');
-    return {...i,qty,price,section:workSection(i)};
+    return {...i,qty,price,section:(i.reasonOnly ? (cashierFloors()[d.floor]||d.floor) : workSection(i))};
   });
   if (d.items.some(isPlate) && (d.customer==='-' || !d.custPhone || !d.vehicle?.trim())) throw Error('Number Plate සඳහා නම, WhatsApp අංකය සහ vehicle number එක දාන්න.');
   if (items.some(isPlate)) {
@@ -8058,11 +8067,12 @@ function printableBill(b,draft=false) {
     ${b.custPhone?`<div>WhatsApp: ${txt(b.custPhone)}</div>`:''}
     ${b.vehicle?`<div>Vehicle: ${txt(b.vehicle)}</div>`:''}
     <div>Cashier: ${txt(b.cashier)}${section?' ('+txt(section)+')':''}</div>
+    <div style="font-weight:900;color:#1d4ed8">💰 මුදල් එකතු වෙන්නේ: ${txt(cashierFloors()[b.floor]||b.floor||section||'')} Cashier එකට</div>
     <div>Payment: ${txt(b.payMethod||'Cash')}</div><hr>
     ${b.items.map(i=>{
       const hasRate=Number(i.rate)>0;
       const unit=hasRate&&Number(i.w)>0&&Number(i.h)>0?'sq ft':'unit';
-      return `<div>${txt(i.name||i.baseName||'Item')}${draft&&i.section?' · '+txt(i.section):''}</div>
+      return `<div>${txt(i.name||i.baseName||'Item')}${draft&&i.section?(i.reasonOnly?' · Cashier: '+txt(i.section):' · Work: '+txt(i.section)):''}</div>
         <div style="font-size:12px">Rate: Rs. ${currency(hasRate?i.rate:i.price)} / ${unit}</div>
         <div class="rads-line"><span>${txt(i.qty)} × ${currency(i.price)}</span><span>${currency(i.qty*i.price)}</span></div>`;
     }).join('')}
@@ -8126,7 +8136,7 @@ window.saveNewBill = (printAfter=false) => {
   try {d=takeBillSnapshot();} catch(err){return alert(err.message);}
   savedReceipt=null;
   const request=uuid();
-  review.innerHTML=`<h2>බිල තහවුරු කරන්න</h2><p>විස්තර සහ cashier එක පරීක්ෂා කරන්න.</p>${printableBill(d,true)}
+  review.innerHTML=`<h2>බිල තහවුරු කරන්න</h2><p style="background:#2563eb;color:#fff;font-weight:900;padding:8px 10px;border-radius:10px">💰 මේ Bill එකේ සල්ලි එකතු වෙන්නේ: ${txt(cashierFloors()[d.floor]||d.floor)} Cashier එකට</p><p>විස්තර සහ cashier එක පරීක්ෂා කරන්න.</p>${printableBill(d,true)}
   <label><input type="checkbox" id="rads-reviewed"> මම විස්තර පරීක්ෂා කළා</label><p role="alert" id="rads-error"></p>
   <div class="rads-actions"><button type="button" data-edit>ආපසු සංස්කරණය</button><button type="button" data-save disabled>${printAfter?'තහවුරු කර Save & Print':'තහවුරු කර Save'}</button></div>`;
   const approve = review.querySelector('[data-save]');
@@ -8509,7 +8519,7 @@ window.radsBillButton = (type) => {
     const plate={baseName:'Number Plate',name:'Number Plate',qty:1,price:0,w:'',h:'',rate:''};
     const blank=d.items.findIndex(item=>!item.name&&!item.baseName);
     if(blank>=0)d.items.splice(blank,1,plate);else d.items.push(plate);
-    d.floor='Ground';
+    d.floor='Ground'; ui.selectedCashierFloor='Ground';
   }
   if(type==='paid'){
     d.pending=false;
