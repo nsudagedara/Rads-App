@@ -288,6 +288,8 @@
     sidebarPinned: true,
     tvMode: false,
     selectedCashierFloor: 'Ground',
+    cashierTab: 'home',
+    cashierExpenseCat: 'Office',
     searchQuery: '',
     expandedLoginId: 'PC04',
     showAddMember: false,
@@ -1091,7 +1093,29 @@
     }
   };
 
-  window.transferCashierToTeaPurse = async () => {
+  window.radsAddCashierExpense = async () => {
+  if(!isBillingRole())return;
+  const person=document.getElementById('ex_person')?.value||'';
+  const reason=document.getElementById('ex_reason')?.value.trim()||'';
+  const note=document.getElementById('ex_note')?.value.trim()||'';
+  const amount=fixed(document.getElementById('ex_amount')?.value);
+  const floor=ui.selectedCashierFloor;
+  const cat=ui.cashierExpenseCat||'Office';
+  const kind=cat==='👤 Family withdrawal'?'withdrawal':'expense';
+  const fullReason = cat + (reason ? ' - ' + reason : '') + (note ? ' (' + note + ')' : '');
+  if(!Number.isFinite(amount)||amount<=0||!person||!reason)return alert('කවුද / වියදම / Amount පරීක්ෂා කරන්න.');
+  if(!confirm(`${cashierFloors()[floor]} → ${person} · Rs. ${currency(amount)}\n${fullReason}\nSave කරන්නද?`))return;
+  try{
+    const id=uuid(),date=todayISO();
+    await commitUpdate('Cashier expense',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      if(calcCashierBalances(s)[floor]<amount)throw Error('Cashier එකේ ප්‍රමාණවත් මුදල් නැහැ.');
+      (s.extraWorks||=[]).unshift({id,date,floor,person,reason:fullReason,amount,kind,by:p.name});
+    });
+    playSoundEffect('cashOut');
+  }catch(err){alert(err.message);}
+};
+window.transferCashierToTeaPurse = async () => {
     const amt = Number(document.getElementById('tea_trans_amt').value);
     const floor = document.getElementById('tea_trans_floor').value;
     if (!amt || amt <= 0) return alert('මුදල ඇතුළත් කරන්න.');
@@ -2208,8 +2232,54 @@
     `;
   }
 
+  function renderCashierExpenseTab(bals, mStats) {
+    const today = getColomboDate();
+    const todayList = (cloudData.extraWorks||[]).filter(e=>!e.voidDetails && e.date===today && (e.kind!=='withdrawal'));
+    const todayTotal = todayList.reduce((s,e)=>s+Number(e.amount||0),0);
+    const monthList = (cloudData.extraWorks||[]).filter(e=>!e.voidDetails && String(e.date||'').startsWith(today.slice(0,7)) && (e.kind!=='withdrawal'));
+    const monthTotal = monthList.reduce((s,e)=>s+Number(e.amount||0),0);
+    const cats = ['⛽ Fuel','🚚 Lorry/Courier','🛠️ Material','🧹 Office','🍽️ Food / Tea','📦 Packing','🔌 Electricity / Bill','👤 Family withdrawal'];
+    const cat = ui.cashierExpenseCat || 'Office';
+    return `
+      <div class="max-w-6xl mx-auto p-4 space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💰 Cashier Home</button>
+          <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">💸 Expense (වියදම්)</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
+          <div><span class="text-[11px] font-bold text-gray-500">SELECT CASH REGISTER</span>
+            <div class="flex flex-wrap gap-2 mt-1">
+              ${Object.keys(cashierFloors()).map(f => `<button onclick="ui.selectedCashierFloor='${f}'; ui.draftBill.floor='${f}'; render();" class="px-3 py-1.5 rounded-xl text-xs font-black ${ui.selectedCashierFloor===f ? 'bg-[#E31E24] text-white' : 'bg-gray-100'}">${txt(cashierFloors()[f])}: Rs. ${currency(bals[f])}</button>`).join('')}
+            </div>
+          </div>
+          <div class="text-right"><div class="text-[11px] font-bold text-rose-700">අද වියදම්: <b>Rs. ${todayTotal.toLocaleString()}</b></div><div class="text-[11px] text-gray-500">මේ මාසේ වියදම්: <b>Rs. ${monthTotal.toLocaleString()}</b></div><div class="text-2xl font-black text-emerald-700">${txt(cashierFloors()[ui.selectedCashierFloor])} Balance: Rs. ${currency(bals[ui.selectedCashierFloor])}</div></div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h3 class="font-black text-sm">💸 අලුත් වියදමක් එකතු කරන්න — ${txt(cashierFloors()[ui.selectedCashierFloor])} Register එකෙන් අඩු වේ</h3>
+          <div class="flex flex-wrap gap-1.5">
+            ${cats.map(c2 => `<button onclick="ui.cashierExpenseCat='${c2.replace(/'/g,"\\'")}'; render();" class="px-2.5 py-1 rounded-lg text-xs font-bold ${cat===c2 ? 'bg-[#E31E24] text-white' : 'bg-gray-800 text-white'}">${c2}</button>`).join('')}
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <label class="text-xs font-bold">කවුද ගත්තේ / දුන්නේ<select id="ex_person" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1">${cloudData.staff.map(s => `<option value="${s.name}">${s.name} (${s.id})</option>`).join('')}</select></label>
+            <label class="text-xs font-bold">වියදම (Reason)<input id="ex_reason" type="text" placeholder="උදා: Diesel, Flex roll..." class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+            <label class="text-xs font-bold">Amount (Rs.)<input id="ex_amount" type="number" min="0.01" step="0.01" placeholder="Amount (Rs.)" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+            <label class="text-xs font-bold">Note (විකල්ප)<input id="ex_note" type="text" placeholder="Note..." class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+          </div>
+          <p class="text-[11px] text-gray-500">Category: <b>${txt(cat)}</b> · Register: <b>${txt(cashierFloors()[ui.selectedCashierFloor])}</b> · Date: <b>${today}</b></p>
+          <button onclick="radsAddCashierExpense()" class="bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs font-black">+ Save Expense</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-1">
+          <h3 class="font-black text-sm">📋 අද වියදම් (${todayList.length}) — Rs. ${todayTotal.toLocaleString()}</h3>
+          ${todayList.length ? todayList.slice(0,20).map(e => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${e.date}</b> • ${txt(e.person)} — <b>${txt(e.reason)}</b> (${txt(cashierFloors()[e.floor]||e.floor)})</span><span class="font-black text-rose-700">Rs. ${currency(e.amount)}</span></div>`).join('') : '<p class="text-xs text-gray-500">අද තාම වියදමක් නැහැ.</p>'}
+        </div>
+      </div>
+    `;
+  }
+
   function renderCashierHome() {
     const bals = calcCashierBalances();
+    const mStats = calcMonthlyStats();
+    if(ui.cashierTab==='expense') return renderCashierExpenseTab(bals, mStats);
     const mStats = calcMonthlyStats();
     const c = ui.coins;
     const countedTotal = (c.c5000 * 5000) + (c.c2000 * 2000) + (c.c1000 * 1000) + (c.c500 * 500) + (c.c100 * 100) + (c.c50 * 50) + (c.c20 * 20) + (c.c10 * 10) + (c.c5 * 5);
@@ -2226,6 +2296,10 @@
 
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">💰 Cashier Home</button>
+          <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💸 Expense (වියදම්) →</button>
+        </div>
         ${isBossOrFamily(ui.user)?'<button type="button" class="bg-black text-white px-3 py-2 rounded" onclick="radsAddCashier()">+ Add Cashier Counter</button>':''}
         <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
           <div>
@@ -2282,32 +2356,9 @@
           ${(cloudData.shiftTransfers || []).slice(0, 3).map(st => `<div class="text-[11px] text-gray-300"><b>${st.time}</b> | ${st.floor}: <b>${st.from}</b> → <b>${st.to}</b> (Rs. ${st.amount})</div>`).join('')}
         </div>
 
-        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
-          <h3 class="font-black text-sm">💸 PETTY CASH & EXPENSES (Deducts from Register + Sound)</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-            <select id="ew_person" class="border rounded-lg px-2 py-1.5 text-xs font-bold">
-              ${cloudData.staff.map(s => `<option value="${s.name}">${s.name} (${s.id})</option>`).join('')}
-            </select>
-            <input id="ew_reason" type="text" placeholder="වියදම (Reason)..." class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
-            <input id="ew_amount" type="number" placeholder="Amount (Rs.)" class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
-            <select id="ew_floor" disabled class="border rounded-lg px-2 py-1.5 text-xs font-bold">
-${cashierOptions(ui.selectedCashierFloor)}</select>
-          </div>
-          <div class="flex flex-wrap gap-1.5">
-            <button onclick="addExtraWork('⛽ Fuel')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ ⛽ Fuel</button>
-            <button onclick="addExtraWork('🚚 Lorry/Courier')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ 🚚 Lorry/Courier</button>
-            <button onclick="addExtraWork('🛠️ Material')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ 🛠️ Material</button>
-            <button onclick="addExtraWork('🧹 Office')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ 🧹 Office</button>
-            <button onclick="addExtraWork('Family withdrawal')">Family withdrawal</button><button onclick="addExtraWork('')" class="bg-[#E31E24] text-white px-3 py-1 rounded-lg text-xs font-black ml-auto">+ Add Expense</button>
-          </div>
-          <div class="space-y-1 pt-2">
-            ${cloudData.extraWorks.filter(e=>!e.voidDetails).slice(0, 8).map(e => `
-              <div class="flex justify-between text-xs border-b py-1.5">
-                <span><b>${e.date}</b> • ${e.person} — <b>${e.reason}</b> (${e.floor})</span>
-                <span class="font-black text-rose-700">Rs. ${e.amount}</span>
-              </div>
-            `).join('')}
-          </div>
+        <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
+          <div><h3 class="font-black text-sm">💸 Expense / වියදම් — වෙනම Tab එකක්</h3><p class="text-xs text-gray-500 mt-0.5">වියදම් දැන් Cashier Home එකේ නැහැ. Expense tab එකෙන් වෙනම add කරන්න.</p></div>
+          <button onclick="ui.cashierTab='expense'; render();" class="bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs font-black">💸 Expense Tab එකට යන්න →</button>
         </div>
       </div>
     `;
