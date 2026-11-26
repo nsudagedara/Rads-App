@@ -102,7 +102,15 @@
         border-radius: 0 !important;
       }
     }
-  </style>
+  
+/* SMART (V5): missing-item highlight + FAB lift so it never covers +Add Item / Save */
+.rads-field-error{border:2px solid #dc2626!important;background:#fef2f2!important;box-shadow:0 0 0 3px #fecaca!important}
+.rads-smart-hint{font-size:11px;font-weight:800;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:6px 8px;margin-top:4px}
+.rads-smart-ok{font-size:11px;font-weight:800;color:#065f46;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 8px;margin-top:4px}
+.rads-smart-btn{border:1px solid #065f46;background:#fff;color:#065f46;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:900}
+.rads-smart-btn:disabled{opacity:.4}
+.rads-quick-bill{bottom:calc(96px + env(safe-area-inset-bottom))!important}
+</style>
 <style>
 #rads-print-root { display:none }
 .rads-smart-cash{background:#f0f6f4;border:1px solid #bcd3ca;border-radius:20px;padding:clamp(12px,3vw,24px);color:#142923}
@@ -118,6 +126,15 @@
 .rads-smart-find [hidden]{display:none!important}
 .rads-quick-bill { position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));width:64px;height:64px;z-index:45;border-radius:50%;background:#b41327;color:white;font-weight:800;box-shadow:0 5px 16px #0005 }
 @media print { .rads-quick-bill { display:none!important } }
+  .rads-bottom-paybar{position:fixed;left:0;right:0;bottom:0;z-index:45;display:flex;justify-content:space-around;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#111;border-top:1px solid #333}
+  .rads-paywrap{position:relative;flex:1;max-width:220px}
+  .rads-paybtn{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;background:#1c1c1c;border:1px solid #333;border-radius:14px;padding:6px 4px;color:#fff;font-weight:800;font-size:12px}
+  .rads-paybtn img{width:44px;height:44px;object-fit:cover;border-radius:10px;background:#000}
+  .rads-paymenu{position:absolute;left:0;right:0;bottom:calc(100% + 6px);background:#fff;border-radius:14px;box-shadow:0 8px 24px #0008;overflow:hidden;display:flex;flex-direction:column}
+  .rads-paymenu[hidden]{display:none}
+  .rads-paymenu button{padding:12px 10px;text-align:left;font-weight:800;font-size:13px;color:#111;border-bottom:1px solid #eee;background:#fff}
+  .rads-paymenu button:last-child{border-bottom:none}
+  @media print { .rads-bottom-paybar { display:none!important } }
 #rads-bill-review { width:min(95vw,560px); max-height:90dvh; margin:auto; overflow:auto; border:1px solid #ccc; border-radius:16px; padding:16px; background:#fff; color:#111 }
 #rads-bill-review::backdrop { background:#0009 }
 #rads-bill-review h2 { font-size:20px;font-weight:800 }
@@ -143,6 +160,12 @@
   body[data-rads-print=report] #rads-print-root { page:radsReport }
 }
 
+
+/* FIX: Reason-Only box + selected cashier styles (were lost in duplicated file) */
+.rads-reason-only-box{margin-top:10px;padding:12px;border:2px dashed #2563eb;border-radius:12px;background:#eff6ff}
+.rads-counter-selected{background:#2563eb!important;color:#fff!important;border:3px solid #1e40af!important;box-shadow:0 0 0 4px #bfdbfe,0 8px 20px rgba(37,99,235,.45)!important;transform:scale(1.03);}
+.rads-counter-selected strong{color:#fff!important}
+.rads-selected-badge{display:inline-block;background:#fff;color:#1d4ed8;font-weight:900;font-size:10px;padding:2px 8px;border-radius:999px;margin-bottom:4px}
 </style>
 </head>
 <body class="text-gray-900">
@@ -288,6 +311,8 @@
     sidebarPinned: true,
     tvMode: false,
     selectedCashierFloor: 'Ground',
+    cashierTab: 'home',
+    cashierExpenseCat: 'Office',
     searchQuery: '',
     expandedLoginId: 'PC04',
     showAddMember: false,
@@ -460,7 +485,8 @@
       } else {
         res.todayCashIncome += cashAmt;
         res.todayBankIncome += bankAmt;
-        if (res[b.floor] !== undefined) res[b.floor] += cashAmt;
+        const f = normalizeFloor(b.floor);
+        if (res[f] !== undefined) res[f] += cashAmt;
         else res.Ground += cashAmt;
       }
     });
@@ -472,18 +498,20 @@
     cloudData.extraWorks.filter(e => e.date === today).forEach(e => {
       const amt = Number(e.amount || 0);
       res.todayExpenses += amt;
-      if (res[e.floor] !== undefined) res[e.floor] -= amt;
+      const f = normalizeFloor(e.floor);
+      if (res[f] !== undefined) res[f] -= amt;
       else res.Ground -= amt;
     });
 
     (cloudData.teaTransfers || []).filter(t => t.date === today).forEach(t => {
       const amt = Number(t.amount || 0);
       res.todayTeaDeducted += amt;
-      if (res[t.floor] !== undefined) res[t.floor] -= amt;
+      const f = normalizeFloor(t.floor);
+      if (res[f] !== undefined) res[f] -= amt;
       else res.Ground -= amt;
     });
 
-    res.Total = res.Ground + res.Upper + res.Counter3;
+    res.Total = res.Ground + res.Upper; res.Counter3 = 0; // V8: Counter3 no longer exists - its old amounts are already folded into Upper above
     return res;
   }
 
@@ -622,9 +650,8 @@
     window.open(url, '_blank');
   };
 
-  window.loginUser = (id) => {
-    const pwd = document.getElementById('pwd_' + id).value;
-    const person = cloudData.staff.find(s => s.id === id);
+  const doLogin = (person, pwd) => {
+    if (person && !person.disabled && typeof person.pass === "string" && person.pass.length > 0 && person.pass === pwd) {
     if (person && !person.disabled && typeof person.pass === "string" && person.pass.length > 0 && person.pass === pwd) {
       if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
@@ -641,6 +668,17 @@
       alert('❌ Password වැරදියි! (Wrong Password)');
     }
   };
+  window.loginUser = (id) => {
+    const person = cloudData.staff.find(s => s.id === id);
+    doLogin(person, document.getElementById('pwd_' + id).value);
+  };
+  // V12: Login Tab - නම Drop Down එකෙන් තෝරලා / ගහලා, Password ගහලා Login
+  window.loginByName = () => {
+    const q = (document.getElementById('login_name').value || '').trim().toLowerCase();
+    const person = (cloudData.staff || []).find(s => !s.disabled && (String(s.name || '').toLowerCase() === q || String(s.id || '').toLowerCase() === q));
+    if (!person) { alert('❌ නම හමු වුණේ නැහැ — List එකෙන් නම තෝරන්න'); return; }
+    doLogin(person, document.getElementById('login_pwd').value);
+  };
 
   window.addNewMember = () => radsStaff("add");
 
@@ -651,6 +689,8 @@
     render();
   };
 
+  window.hidePayMenus = () => document.querySelectorAll('[data-paymenu]').forEach(m=>m.hidden=true);
+  window.radsTogglePayMenu = (which) => { document.querySelectorAll('[data-paymenu]').forEach(m=>{ if(m.dataset.paymenu===which) m.hidden=!m.hidden; else m.hidden=true; }); };
   window.setPage = (p) => {
     ui.page = p;
     ui.menuOpen = false;
@@ -710,7 +750,9 @@
   };
 
   function billDraftTotal(draft) {
-    return fixed(draft.items.reduce((sum,item)=>sum+Number(item.qty||0)*fixed(item.price||0),0)+Number(draft.serviceCharge||0));
+    const safe = v => Number.isFinite(Number(v)) ? Number(v) : 0;
+    if(draft.reasonOnly) return fixed(safe(draft.reasonAmount)+safe(draft.serviceCharge));
+    return fixed(draft.items.reduce((sum,item)=>sum+safe(item.qty)*fixed(safe(item.price)),0)+safe(draft.serviceCharge));
   }
 
   function billCashPayment(draft,total) {
@@ -754,6 +796,7 @@
     const item = ui[target].items[idx];
     item.baseName = val;
     item.manualRate = false;
+    item.manualPrice = false; // V12: අලුත් item එකක් තෝරද්දී Direct Price lock එක අයින් කරන්න
     const rateObj = cloudData.rates.find(r => r.name.toLowerCase() === val.toLowerCase());
     if (rateObj) {
       if (rateObj.isSqft) {
@@ -793,11 +836,11 @@
         item.rate = sqft < 10 ? rateObj.u10m : rateObj.u10p;
       }
       const activeRate = Number(item.rate || 0);
-      if (activeRate > 0) {
+      if (activeRate > 0 && !item.manualPrice) { // V12: Price එක අතින් ගහලා තියෙනවා නම් W/H වෙනස් වුණත් Price එක වෙනස් වෙන්නේ නැහැ
         item.price = Math.round(sqft * activeRate);
       }
       item.name = item.baseName ? `${item.baseName} ${w}x${h}` : `${w}x${h}`;
-    } else if (Number(item.rate) > 0 && source === 'rate') {
+    } else if (Number(item.rate) > 0 && source === 'rate' && !item.manualPrice) {
       item.price = Number(item.rate);
     }
 
@@ -926,6 +969,7 @@
     if (!amtStr) return;
     const paid = Number(amtStr);
     if (isNaN(paid) || paid <= 0) return;
+    if (paid > Number(bill.balance || 0)) return alert('ගෙවූ මුදල ඉතිරි මුදලට වඩා වැඩියි. ඉතිරිය: Rs. ' + currency(bill.balance));
 
     const isBank = confirm(`මෙම Rs. ${paid} ලැබුණේ BANK TRANSFER එකක් විදියටද?\n\n[OK] = Bank Transfer (Cashier එකට එකතු නොවේ)\n[Cancel] = Cash (Cashier Register එකට එකතු වේ)`);
 
@@ -951,12 +995,10 @@
     render();
   };
 
-  window.deleteBill = async (billId) => {
-    if (!confirm(`⚠️ ඔබට ${billId} බිල්පත සම්පූර්ණයෙන්ම Delete කිරීමට අවශ්‍යද?`)) return;
-    cloudData.bills = cloudData.bills.filter(x => x.id !== billId);
-    await saveCloud(`Deleted Bill ${billId}`);
-    render();
-  };
+  // FIX: Hard-delete removed - bills must NEVER be permanently deleted (cashier balance / audit trail breaks).
+  // The active deleteBill below (voidHistory) only marks status='Void' and keeps the record.
+  // This old definition is kept as a no-op guard so a stale reference can never hard-delete.
+  window.deleteBill = async (billId) => { alert('Bill එකක් සම්පූර්ණයෙන් Delete කරන්න බැහැ. Void කරන්න විතරයි පුළුවන්.'); };
 
   window.submitPrintOrder = async () => {
     const dp = ui.draftPrint;
@@ -1032,23 +1074,33 @@
   };
 
   window.addJobBankTransfer = async (jobIdx) => {
-    const j = cloudData.jobs[jobIdx];
-    const amtStr = prompt(`Job #${j.id} (${j.name}) සඳහා Customer දැමූ Bank Transfer මුදල (Rs.):`);
+    // FIX: Job bank money linked to a Bill MUST go through collectPayment() on the Bill.
+    // Old code updated only the Job + bankTransfers, leaving Bill.balance unchanged,
+    // so the same money was counted again when the Bill was later collected (double income),
+    // and the Bill never became FULL PAID. It also wrote cloudData directly (lost-update risk).
+    const j0 = cloudData.jobs[jobIdx];
+    if (!j0) return;
+    if (j0.billNo) {
+      const linked = cloudData.bills.find(b => String(b.id).toUpperCase() === String(j0.billNo).toUpperCase() && b.status !== 'Void');
+      if (linked) return alert('මේ Job එක Bill එකකට සම්බන්ධයි (' + linked.id + '). Bank මුදල Bill එකෙන්ම Collect කරන්න - Job එකෙන් දැම්මොත් එකම මුදල දෙපාරක් ගණන් වෙනවා.');
+    }
+    const amtStr = prompt(`Job #${j0.id} (${j0.name}) සඳහා Customer දැමූ Bank Transfer මුදල (Rs.):`);
     if (!amtStr) return;
     const amt = Number(amtStr);
     if (!amt || amt <= 0) return;
     const ref = prompt("Bank Slip / Reference No (Optional):", "Online Transfer") || "Online Transfer";
-
-    j.bankPaid = (j.bankPaid || 0) + amt;
-    if (j.amount > 0 && j.bankPaid >= j.amount) j.steps.Payment = true;
-    else if (confirm("මෙය Full Payment එකද? (Job Payment OK කරන්නද?)")) j.steps.Payment = true;
-
-    cloudData.bankTransfers = cloudData.bankTransfers || [];
-    cloudData.bankTransfers.unshift({ date: getColomboDate(), ref: `Job #${j.id} (${ref})`, customer: j.name, amount: amt, by: ui.user.name });
-
-    playSoundEffect('cashIn');
-    await saveCloud(`Recorded Bank Transfer Rs. ${amt} for Job #${j.id}`);
-    render();
+    try {
+      await commitUpdate('Job bank transfer', (state, person) => {
+        const j = state.jobs[jobIdx];
+        if (!j) throw Error('Job එක හමු වුණේ නැහැ.');
+        if (j.billNo) throw Error('Bill එකට සම්බන්ධ Job එකක් - Bill එකෙන්ම Collect කරන්න.');
+        j.bankPaid = (j.bankPaid || 0) + amt;
+        if (j.amount > 0 && j.bankPaid >= j.amount) j.steps.Payment = true;
+        (state.bankTransfers ||= []).unshift({ date: getColomboDate(), ref: `Job #${j.id} (${ref})`, customer: j.name, amount: amt, by: person.name });
+      });
+      playSoundEffect('cashIn');
+      render();
+    } catch (err) { alert(err.message); }
   };
 
   function teaAttendanceFor(person,date) {
@@ -1091,7 +1143,82 @@
     }
   };
 
-  window.transferCashierToTeaPurse = async () => {
+  window.radsAddCashierExpense = async () => {
+  if(!isBillingRole())return;
+  const person=document.getElementById('ex_person')?.value||'';
+  const reason=document.getElementById('ex_reason')?.value.trim()||'';
+  const note=document.getElementById('ex_note')?.value.trim()||'';
+  const amount=fixed(document.getElementById('ex_amount')?.value);
+  const floor=ui.selectedCashierFloor;
+  const cat=ui.cashierExpenseCat||'Office';
+  const kind=cat==='👤 Family withdrawal'?'withdrawal':'expense';
+  const fullReason = cat + (reason ? ' - ' + reason : '') + (note ? ' (' + note + ')' : '');
+  if(!Number.isFinite(amount)||amount<=0||!person||!reason)return alert('කවුද / වියදම / Amount පරීක්ෂා කරන්න.');
+  if(!confirm(`${cashierFloors()[floor]} → ${person} · Rs. ${currency(amount)}\n${fullReason}\nSave කරන්නද?`))return;
+  try{
+    const id=uuid(),date=todayISO();
+    await commitUpdate('Cashier expense',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      if(calcCashierBalances(s)[floor]<amount)throw Error('Cashier එකේ ප්‍රමාණවත් මුදල් නැහැ.');
+      (s.extraWorks||=[]).unshift({id,date,floor,person,reason:fullReason,amount,kind,by:p.name});
+    });
+    playSoundEffect('cashOut');
+  }catch(err){alert(err.message);}
+};
+window.radsBBDTake = async () => {
+  if(!isBillingRole())return;
+  const person=document.getElementById('bbd_person')?.value||'';
+  const amount=fixed(document.getElementById('bbd_amount')?.value);
+  const reason=document.getElementById('bbd_reason')?.value.trim()||'';
+  const bal=bbdBalanceOf(cloudData);
+  if(!Number.isFinite(amount)||amount<=0)return alert('ගත් මුදල ඇතුළත් කරන්න.');
+  if(amount>bal)return alert('BBD එකේ තියෙන්නේ Rs. '+currency(bal)+' යි. ඒකට වඩා ගන්න බැහැ.');
+  if(!reason)return alert('හේතුව ඇතුළත් කරන්න.');
+  if(!confirm(`BBD එකෙන් Rs. ${currency(amount)} ගන්නද?\n${person} · ${reason}\nඉතිරි වෙන්නේ: Rs. ${currency(bal-amount)}`))return;
+  try{
+    const id=uuid(),date=todayISO();
+    await commitUpdate('BBD take',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      const b=bbdBalanceOf(s);
+      if(amount>b)throw Error('BBD එකේ ප්‍රමාණවත් මුදල් නැහැ.');
+      s.bbdBalance=fixed(b-amount);
+      (s.bbdHistory||=[]).unshift({id,date,type:'take',amount,person,reason,balanceAfter:s.bbdBalance,by:p.name});
+    });
+    playSoundEffect('cashOut');
+  }catch(err){alert(err.message);}
+};
+window.radsBBDAllocate = async (fromReminder=false) => {
+  if(!isBillingRole())return;
+  const bal=bbdBalanceOf(cloudData);
+  if(bal!==0)return alert('BBD එකේ තාම Rs. '+currency(bal)+' ඉතුරුයි. ඉතිරිය රු. 0 වුණාම තමයි නැවත වෙන් කරන්න පුළුවන්.');
+  const floor = fromReminder ? (cloudData.bbdReminder?.floor||ui.selectedCashierFloor) : (document.getElementById('bbd_floor')?.value||ui.selectedCashierFloor);
+  const avail=calcCashierBalances()[floor]||0;
+  if(avail<1000){
+    if(confirm(`⚠️ ${cashierFloors()[floor]} එකේ තියෙන්නේ Rs. ${currency(avail)} යි.\n\nමුදල් ප්‍රමාණවත් වුණාම මේ Cashier එකෙන් රු. 1,000 වෙන් කරන්න මතක් කරන්නද?`)){
+      try{ await commitUpdate('BBD reminder set',(s,p)=>{ s.bbdReminder={floor,amount:1000,date:todayISO(),by:p.name}; }); }catch(err){alert(err.message);}
+    }
+    return;
+  }
+  if(!confirm(`${cashierFloors()[floor]} එකෙන් රු. 1,000 අඩු වෙලා BBD එකට එකතු කරන්නද?\nBBD ඉතිරිය: Rs. 1,000`))return;
+  try{
+    const id=uuid(),date=todayISO();
+    await commitUpdate('BBD allocate',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      if(bbdBalanceOf(s)!==0)throw Error('BBD එකේ තාම ඉතිරියක් තියෙනවා.');
+      if(calcCashierBalances(s)[floor]<1000)throw Error('Cashier එකේ ප්‍රමාණවත් මුදල් නැහැ.');
+      s.bbdBalance=1000;
+      (s.bbdAllocations||=[]).unshift({id,date,floor,amount:1000,by:p.name});
+      (s.bbdHistory||=[]).unshift({id,date,type:'allocate',amount:1000,person:p.name,floor,reason:'BBD නැවත වෙන් කිරීම — '+cashierFloors()[floor],balanceAfter:1000,by:p.name});
+      delete s.bbdReminder;
+    });
+    playSoundEffect('cashIn');
+  }catch(err){alert(err.message);}
+};
+window.radsBBDCancelReminder = async () => {
+  if(!confirm('BBD මතක් කිරීම අයින් කරන්නද?'))return;
+  try{ await commitUpdate('BBD reminder cancelled',(s)=>{ delete s.bbdReminder; }); }catch(err){alert(err.message);}
+};
+window.transferCashierToTeaPurse = async () => {
     const amt = Number(document.getElementById('tea_trans_amt').value);
     const floor = document.getElementById('tea_trans_floor').value;
     if (!amt || amt <= 0) return alert('මුදල ඇතුළත් කරන්න.');
@@ -1320,7 +1447,8 @@
     let csv = 'Bill ID,Date,Customer,PayMethod,Cashier,Floor,Total,Paid,Balance,Status\n';
     cloudData.bills.filter(b => b.date.startsWith(monthPrefix) && b.status !== 'Void').forEach(b => {
       const paidAmt = (b.advance || 0) + (b.bankPaid || 0);
-      csv += `${b.id},${b.date},"${b.customer}",${b.payMethod || 'Cash'},${b.cashier},${b.floor},${b.total},${paidAmt},${b.balance},${b.status}\n`;
+      const csvCell = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+      csv += [b.id, b.date, b.customer, b.payMethod || 'Cash', b.cashier, b.floor, b.total, paidAmt, b.balance, b.status].map(csvCell).join(',') + '\n';
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -1486,10 +1614,7 @@
             </div>
           </div>
 
-          <div class="flex flex-wrap justify-between items-center gap-2">
-            <input type="text" placeholder="🔍 Search Name or PC (e.g. Nimantha, PC10)..." value="${ui.searchQuery}"
-              oninput="ui.searchQuery=this.value; render();"
-              class="w-full sm:w-80 px-4 py-2.5 rounded-xl bg-white text-gray-900 font-bold text-xs focus:outline-none" />
+          <div class="flex justify-end">
             <button onclick="ui.showAddMember=!ui.showAddMember; render();" class="bg-[#E31E24] hover:bg-red-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow">
               + Add New Member
             </button>
@@ -1507,36 +1632,24 @@
             </div>
           ` : ''}
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            ${filtered.map(s => {
-              const isOpen = ui.expandedLoginId === s.id;
-              return `
-                <div onclick="if(ui.expandedLoginId!=='${s.id}'){ui.expandedLoginId='${s.id}'; render();}"
-                  class="brand-card rounded-xl p-4 border ${isOpen ? 'border-[#E31E24] ring-2 ring-[#E31E24]' : 'border-gray-800'} cursor-pointer transition shadow-lg">
-                  <div class="flex justify-between items-start">
-                    <span class="text-xs font-black bg-black px-2 py-0.5 rounded text-gray-300">${s.id}</span>
-                    ${getTenureBadge(s)}
-                  </div>
-                  <div class="flex items-center gap-3 mt-3">
-                    ${s.photo
-                      ? `<img src="${s.photo}" class="w-11 h-11 rounded-full object-cover border-2 border-[#E31E24]" />`
-                      : `<div class="w-11 h-11 rounded-full bg-black border border-gray-700 flex items-center justify-center font-black text-base text-[#E31E24]">${s.name.charAt(0)}</div>`}
-                    <div>
-                      <h3 class="text-sm font-extrabold text-white leading-tight">${s.name}</h3>
-                      <p class="text-[11px] text-gray-400">${s.role}</p>
-                    </div>
-                  </div>
-
-                  ${isOpen ? `
-                    <div class="mt-3 pt-3 border-t border-gray-800 flex gap-2" onclick="event.stopPropagation()">
-                      <input id="pwd_${s.id}" type="password" placeholder="Password" onkeydown="if(event.key==='Enter') loginUser('${s.id}')"
-                        class="w-full px-3 py-1.5 rounded-lg bg-white text-gray-900 text-xs font-bold" />
-                      <button onclick="loginUser('${s.id}')" class="bg-[#E31E24] hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">Login</button>
-                    </div>
-                  ` : `<p class="text-[10px] text-gray-400 mt-3">Tap to login →</p>`}
-                </div>
-              `;
-            }).join('')}
+          <div class="max-w-md mx-auto bg-[#1c1c1c] border border-gray-800 rounded-2xl p-5 space-y-3">
+            <h2 class="text-base font-black text-white">🔐 Login</h2>
+            <div>
+              <label class="text-xs font-bold text-gray-300">නම තෝරන්න / ගහන්න</label>
+              <input id="login_name" list="login_names_list" type="text" placeholder="නම තෝරන්න හෝ ගහන්න..." autocomplete="off"
+                onkeydown="if(event.key==='Enter') document.getElementById('login_pwd').focus()"
+                class="w-full mt-1 px-3 py-2.5 rounded-xl bg-white text-gray-900 font-bold text-sm focus:outline-none" />
+              <datalist id="login_names_list">
+                ${(cloudData.staff || []).filter(s => !s.disabled).map(s => `<option value="${txt(s.name)}">${txt(s.id)} · ${txt(s.role)}</option>`).join('')}
+              </datalist>
+            </div>
+            <div>
+              <label class="text-xs font-bold text-gray-300">Password</label>
+              <input id="login_pwd" type="password" placeholder="Password" onkeydown="if(event.key==='Enter') loginByName()"
+                class="w-full mt-1 px-3 py-2.5 rounded-xl bg-white text-gray-900 font-bold text-sm focus:outline-none" />
+            </div>
+            <button onclick="loginByName()" class="w-full bg-[#E31E24] hover:bg-red-700 text-white font-black py-2.5 rounded-xl text-sm">Login</button>
+            <p class="text-[11px] text-gray-400 text-center">නම Drop Down එකෙන් තෝරන්න, නැත්නම් ගහද්දි එන List එකෙන් තෝරන්න → Password ගහලා Login ඔබන්න.</p>
           </div>
 
           <div class="text-center text-[11px] text-gray-500 pt-4">
@@ -1876,7 +1989,7 @@
     const nextBillNo = nextId(cloudData.bills,'RADS-',3);
 
     return `
-      <div class="max-w-7xl mx-auto p-3 space-y-4">
+      <div class="max-w-7xl mx-auto p-3 space-y-4" style="padding-bottom:110px">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div class="lg:col-span-7 bg-white p-4 rounded-2xl shadow border space-y-3">
             <div class="flex justify-between items-center border-b pb-2">
@@ -1885,13 +1998,13 @@
             </div>
 
             <datalist id="clients_list">
-              ${(cloudData.clientsDir || []).map(c => `<option value="${c.name}">${c.phone}</option>`).join('')}
+              ${(cloudData.clientsDir || []).map(c => `<option value="${txt(c.name)}">${txt(c.phone)}</option>`).join('')}
             </datalist>
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div class="col-span-2">
                 <label class="text-[11px] font-bold">Customer Name (Optional)</label>
-                <input id="bill_cust_name" list="clients_list" type="text" value="${d.customer}"
+                <input id="bill_cust_name" list="clients_list" type="text" value="${txt(d.customer)}"
                   oninput="checkCustomerDebt(this.value)"
                   onkeydown="handleBillEnter(event, 'bill_cust_phone')"
                   placeholder="Customer / Temple..." class="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold" />
@@ -1923,19 +2036,28 @@
             <div class="space-y-2">
               <div class="flex justify-between items-center">
                 <span class="text-xs font-black">Items (Auto Rate හෝ Manual Rate / Direct Price)</span>
-                <button onclick="const nIdx=ui.draftBill.items.length; ui.draftBill.items.push({baseName:'',w:'',h:'',rate:'',manualRate:false,name:'',qty:1,price:0}); render(); setTimeout(()=>document.getElementById('draftBill_item_'+nIdx)?.focus(),30);"
+                <button onclick="const nIdx=ui.draftBill.items.length; ui.draftBill.items.push({baseName:'',w:'',h:'',rate:'',manualRate:false,floor:(ui.draftBill.items[0]?.floor||ui.draftBill.floor),name:'',qty:1,price:0}); // V12: අලුත් item එකට පලවෙනි item එකේ Cashier එක auto render(); setTimeout(()=>document.getElementById('draftBill_item_'+nIdx)?.focus(),30);"
                   class="bg-black text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ Add Item</button>
               </div>
               ${d.items.map((it, idx) => {
                 const nextRowOrSvc = (idx + 1 < d.items.length) ? `draftBill_item_${idx + 1}` : 'bill_svc_charge';
                 return `
                   <div class="bg-gray-50 p-2 rounded-xl border grid grid-cols-12 gap-1.5 items-end">
-                    <div class="col-span-12 sm:col-span-4">
+                    <div class="col-span-4 sm:col-span-1">
+                      <label class="text-[9px] font-bold text-gray-500 block">Cashier</label>
+                      <select onchange="ui.draftBill.items[${idx}].floor=this.value; ${idx===0?'ui.draftBill.floor=this.value; ui.selectedCashierFloor=this.value; ':''}render();"
+                        title="මේ Item එකේ Cashier එක" class="w-full border rounded px-1 py-1.5 text-xs font-black bg-blue-50">
+                        ${cashierOptions(it.floor||d.floor)}
+                      </select>
+                    </div>
+                    <div class="col-span-8 sm:col-span-3">
                       <label class="text-[9px] font-bold text-gray-500 block">Item Name</label>
-                      <input id="draftBill_item_${idx}" list="rate_items_list" type="text" value="${it.baseName || it.name}" placeholder="Flex (6 Pass)..."
+                      <input id="draftBill_item_${idx}" list="rate_items_list" type="text" value="${txt(it.baseName || it.name)}" placeholder="👆 List එකෙන් තෝරන්න — Flex (6 Pass)..."
                         onchange="onBillItemSelect(${idx}, this.value, 'draftBill')"
                         onkeydown="handleBillEnter(event, 'draftBill_w_${idx}')"
-                        class="w-full border rounded px-2 py-1.5 text-xs font-bold bg-white" />
+                        class="w-full border rounded px-2 py-1.5 text-xs font-bold bg-white ${!String(it.baseName||it.name||'').trim()?'rads-field-error':''}" />
+                      ${!String(it.baseName||it.name||'').trim()?`<div class="rads-smart-hint">⚠️ Item එක තාම තෝරලා නැහැ — “Flex (6 Pass)” කියන්නේ placeholder එකක් විතරයි. List එකෙන් එකක් තෝරන්න.</div>`:''}
+                      ${String(it.baseName||it.name||'').trim()&&Number(it.w||0)<=0&&Number(it.h||0)<=0&&it.price<=0?`<div class="rads-smart-hint">👉 W × H දාන්න — එතකොට Rate එකයි Price එකයි auto හැදෙනවා.</div>`:''}
                     </div>
                     <div class="col-span-3 sm:col-span-1">
                       <label class="text-[9px] font-bold text-gray-500 block text-center">W</label>
@@ -1968,7 +2090,7 @@
                     <div class="col-span-7 sm:col-span-2">
                       <label class="text-[9px] font-bold text-gray-500 block text-right">Unit Price</label>
                       <input id="draftBill_price_${idx}" type="number" value="${it.price}" placeholder="Price"
-                        oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); syncBillPreviewItems();"
+                        oninput="ui.draftBill.items[${idx}].price=Number(this.value||0); ui.draftBill.items[${idx}].manualPrice=true; syncBillPreviewItems();" title="Rate නැතුව කෙලින්ම Price එක දාන්න පුළුවන්"
                         onkeydown="handleBillEnter(event, '${nextRowOrSvc}')"
                         class="w-full border rounded px-1.5 py-1.5 text-xs font-black text-right bg-white" />
                     </div>
@@ -1996,10 +2118,12 @@
                   placeholder="Fixing..." class="w-full border rounded px-2 py-1.5 text-xs" />
               </div>
               <div>
-                <label class="text-[11px] font-bold">Cash Register</label>
-                <select onchange="ui.draftBill.floor=this.value; recalcBillLive();" class="w-full border rounded px-2 py-1.5 text-xs font-bold">
-                  ${cashierOptions(d.floor)}
-                </select>
+                <div class="text-[10px] font-black text-gray-500">App Version: V12 — මේක පේන්නේ නැත්නම් ෆෝන් එකේ දුවන්නේ තාම පරණ ෆයිල් එකයි</div>
+                <label class="text-[11px] font-bold">Cash Register — Bill එකේ Cashier එක (හැම අලුත් Item එකකටම මේක auto වැටෙනවා)</label>
+                <div class="grid grid-cols-3 gap-2 mt-1">
+                  ${['Ground','Upper','Counter3'].map(f=>`<button type="button" onclick="ui.draftBill.floor='${f}'; ui.selectedCashierFloor='${f}'; if(ui.draftBill.items[0])ui.draftBill.items[0].floor='${f}'; render();" class="px-2 py-3 rounded-xl text-sm font-black border-2 ${d.floor===f?'bg-blue-600 text-white ring-4 ring-blue-300 border-blue-800 scale-[1.02]':'bg-gray-100 border-gray-300'}">${d.floor===f?'✓ ':''}${f==='Ground'?'⬇️ GROUND':f==='Upper'?'⬆️ UPPER A':'⬆️ UPPER B'}</button>`).join('')}
+                </div>
+                <div class="mt-1 px-2 py-2 rounded-lg bg-blue-600 text-white text-[13px] font-black">💰 සල්ලි + වැඩේ දෙකම යන්නේ: ${txt(billCashierLabel(d.floor))} ට<br><span class="text-[11px] font-bold">⚠️ මේක හරියටම බලන්න — වැරදුණොත් සල්ලි වැරදි Cashier එකට යනවා</span></div>
               </div>
             </div>
 
@@ -2026,6 +2150,12 @@
               </div>
             </div>
 
+            ${(() => { const named=d.items.every(i=>String(i.name||i.baseName||'').trim()); const why=!named?'Item එකක් තෝරන්න — List එකෙන් තෝරන්න':total<=0?'W × H / Price දාන්න — Total එක තාම 0':(!d.pending&&adv<=0)?'Paid / Advance දාන්න — නැත්නම් Pending tick කරන්න':''; return why?`<div class="rads-smart-hint">⏭️ ඊළඟට: ${why}</div>`:`<div class="rads-smart-ok">✅ හරි — Save කරන්න පුළුවන්. Total Rs. ${currency(total)} · Paid Rs. ${currency(adv)} · Balance Rs. ${currency(bal)}</div>`; })()}
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="rads-smart-btn" ${total<=0?'disabled':''} onclick="radsSmartFullPaid()">✅ සම්පූර්ණ ගෙවීම (Paid = Total)</button>
+              <button type="button" class="rads-smart-btn" onclick="radsSmartPending()">⏳ ගෙවීමක් නැහැ (Pending)</button>
+              ${d.cashTendered?`<button type="button" class="rads-smart-btn" onclick="radsSmartClearCash()">🧹 දුන්න Cash අයින් කරන්න</button>`:''}
+            </div>
             <div id="bill_cash_change_box" ${d.pending||d.payMethod!=='Cash'?'hidden':''}>
               <div class="grid grid-cols-2 gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2">
                 <label for="bill_cash_tendered" class="text-xs font-bold">Customer දුන්න Cash
@@ -2037,13 +2167,14 @@
                 </label>
                 <div class="text-xs font-bold">ආපසු දෙන්න ඕන ඉතුරුව
                   <output id="bill_change_due" class="mt-1 block text-lg font-black text-emerald-900" aria-live="polite">${cashPayment?'Rs. '+currency(cashPayment.change):'—'}</output>
+                  ${total<=0&&Number(d.cashTendered||0)>0?`<div class="rads-smart-hint">⚠️ Total තාම 0 නිසා මේ 15000න් Paid වෙන්නේ 0යි. Item එක දැම්මම Change එක ආපහු හැදෙනවා.</div>`:''}
                 </div>
               </div>
             </div>
 
             <div class="flex flex-wrap gap-2">
-              <button class="rads-review-entry" onclick="saveNewBill(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs">Save Bill</button>
-              <button id="btn_save_print_bill" onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 focus:ring-4 focus:ring-red-400 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print (72mm)</button>
+              <button class="rads-review-entry" ${(() => { const named=d.items.every(i=>String(i.name||i.baseName||'').trim()); const ok=named&&total>0&&(d.pending||adv>0); return ok?'':'disabled title="Item / Total / Paid එකක් අඩුයි — උඩින් පෙන්නන ඊළඟ පියවර බලන්න" style="opacity:.45"'; })()} onclick="saveNewBill(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs">Save Bill</button>
+              <button id="btn_save_print_bill" ${(() => { const named=d.items.every(i=>String(i.name||i.baseName||'').trim()); const ok=named&&total>0&&(d.pending||adv>0); return ok?'':'disabled title="Item / Total / Paid එකක් අඩුයි — උඩින් පෙන්නන ඊළඟ පියවර බලන්න" style="opacity:.45"'; })()} onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 focus:ring-4 focus:ring-red-400 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print (72mm)</button>
             </div>
           </div>
 
@@ -2096,7 +2227,7 @@
                 const totalPaidAmt = (b.advance || 0) + (b.bankPaid || 0);
                 return `
                   <tr class="border-b">
-                    ${bulkCell(b,b.status==='Void')}<td class="p-2 font-black">${b.id}</td><td class="p-2">${b.date}</td><td class="p-2 font-bold">${b.customer}</td>
+                    ${bulkCell(b,b.status==='Void')}<td class="p-2 font-black">${b.id}</td><td class="p-2">${b.date}</td><td class="p-2 font-bold">${txt(b.customer)}</td>
                     <td class="p-2"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${b.payMethod==='Bank Transfer'?'bg-cyan-100 text-cyan-900':'bg-gray-100'}">${b.payMethod || 'Cash'}</span></td>
                     <td class="p-2 font-bold">Rs.${b.total}</td>
                     <td class="p-2 text-green-700 font-bold">Rs.${totalPaidAmt}</td>
@@ -2208,9 +2339,111 @@
     `;
   }
 
+  function renderCashierExpenseTab(bals, mStats) {
+    const today = getColomboDate();
+    const todayList = (cloudData.extraWorks||[]).filter(e=>!e.voidDetails && e.date===today && (e.kind!=='withdrawal'));
+    const todayTotal = todayList.reduce((s,e)=>s+Number(e.amount||0),0);
+    const monthList = (cloudData.extraWorks||[]).filter(e=>!e.voidDetails && String(e.date||'').startsWith(today.slice(0,7)) && (e.kind!=='withdrawal'));
+    const monthTotal = monthList.reduce((s,e)=>s+Number(e.amount||0),0);
+    const cats = ['⛽ Fuel','🚚 Lorry/Courier','🛠️ Material','🧹 Office','🍽️ Food / Tea','📦 Packing','🔌 Electricity / Bill','👤 Family withdrawal'];
+    const cat = ui.cashierExpenseCat || 'Office';
+    return `
+      <div class="max-w-6xl mx-auto p-4 space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💰 Cashier Home</button>
+          <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">💸 Expense (වියදම්)</button>
+          <button onclick="ui.cashierTab='bbd'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">📦 BBD</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
+          <div><span class="text-[11px] font-bold text-gray-500">SELECT CASH REGISTER</span>
+            <div class="flex flex-wrap gap-2 mt-1">
+              ${Object.keys(displayCashierFloors()).map(f => `<button onclick="ui.selectedCashierFloor='${f}'; render();" class="px-3 py-1.5 rounded-xl text-xs font-black ${ui.selectedCashierFloor===f ? 'bg-blue-600 text-white ring-4 ring-blue-300 shadow-lg scale-[1.03] border-2 border-blue-800' : 'bg-gray-100'}">${ui.selectedCashierFloor===f?'✓ SELECTED • ':''}${txt(cashierFloors()[f])}: Rs. ${currency(bals[f])}</button>`).join('')}
+            </div>
+          </div>
+          <div class="text-right"><div class="text-[11px] font-bold text-rose-700">අද වියදම්: <b>Rs. ${todayTotal.toLocaleString()}</b></div><div class="text-[11px] text-gray-500">මේ මාසේ වියදම්: <b>Rs. ${monthTotal.toLocaleString()}</b></div><div class="text-2xl font-black text-emerald-700">${txt(cashierFloors()[ui.selectedCashierFloor])} Balance: Rs. ${currency(bals[ui.selectedCashierFloor])}</div></div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h3 class="font-black text-sm">💸 අලුත් වියදමක් එකතු කරන්න — ${txt(cashierFloors()[ui.selectedCashierFloor])} Register එකෙන් අඩු වේ</h3>
+          <div class="flex flex-wrap gap-1.5">
+            ${cats.map(c2 => `<button onclick="ui.cashierExpenseCat='${c2.replace(/'/g,"\\'")}'; render();" class="px-2.5 py-1 rounded-lg text-xs font-bold ${cat===c2 ? 'bg-[#E31E24] text-white' : 'bg-gray-800 text-white'}">${c2}</button>`).join('')}
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <label class="text-xs font-bold">කවුද ගත්තේ / දුන්නේ<select id="ex_person" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1">${cloudData.staff.map(s => `<option value="${s.name}">${s.name} (${s.id})</option>`).join('')}</select></label>
+            <label class="text-xs font-bold">වියදම (Reason)<input id="ex_reason" type="text" placeholder="උදා: Diesel, Flex roll..." class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+            <label class="text-xs font-bold">Amount (Rs.)<input id="ex_amount" type="number" min="0.01" step="0.01" placeholder="Amount (Rs.)" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+            <label class="text-xs font-bold">Note (විකල්ප)<input id="ex_note" type="text" placeholder="Note..." class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+          </div>
+          <p class="text-[11px] text-gray-500">Category: <b>${txt(cat)}</b> · Register: <b>${txt(cashierFloors()[ui.selectedCashierFloor])}</b> · Date: <b>${today}</b></p>
+          <button onclick="radsAddCashierExpense()" class="bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs font-black">+ Save Expense</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-1">
+          <h3 class="font-black text-sm">📋 අද වියදම් (${todayList.length}) — Rs. ${todayTotal.toLocaleString()}</h3>
+          ${todayList.length ? todayList.slice(0,20).map(e => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${e.date}</b> • ${txt(e.person)} — <b>${txt(e.reason)}</b> (${txt(cashierFloors()[e.floor]||e.floor)})</span><span class="font-black text-rose-700">Rs. ${currency(e.amount)}</span></div>`).join('') : '<p class="text-xs text-gray-500">අද තාම වියදමක් නැහැ.</p>'}
+        </div>
+      </div>
+    `;
+  }
+
+
+  function bbdBalanceOf(state){ return Number(state?.bbdBalance ?? 1000); }
+  function renderCashierBBDTab(bals) {
+    const bal = bbdBalanceOf(cloudData);
+    const reminder = cloudData.bbdReminder || null;
+    const remFloorBal = reminder ? (bals[reminder.floor] ?? 0) : 0;
+    const reminderReady = reminder && remFloorBal >= 1000;
+    const hist = (cloudData.bbdHistory||[]).slice(0,20);
+    return `
+      <div class="max-w-6xl mx-auto p-4 space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💰 Cashier Home</button>
+          <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💸 Expense (වියදම්)</button>
+          <button onclick="ui.cashierTab='bbd'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">📦 BBD</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
+          <div><span class="text-[11px] font-bold text-gray-500">BALANCE BROUGHT DOWN (BBD) — වෙනම වෙන් කරපු මුදල</span>
+          <div class="text-3xl font-black ${bal===0?'text-red-700':'text-emerald-700'}">Rs. ${currency(bal)}</div>
+          <div class="text-[11px] text-gray-500">${bal===0?'BBD ඉවරයි — Cashier එකකින් රු. 1,000ක් නැවත වෙන් කරන්න.':'මුළු BBD වෙන් කිරීම: Rs. 1,000'}</div></div>
+          <div class="text-right"><div class="text-[11px] font-bold text-gray-500">තෝරපු Cashier: ${txt(cashierFloors()[ui.selectedCashierFloor])}</div><div class="text-lg font-black">Rs. ${currency(bals[ui.selectedCashierFloor])}</div></div>
+        </div>
+        ${reminder ? `<div class="p-4 rounded-2xl border space-y-2 ${reminderReady?'bg-emerald-50 border-emerald-400':'bg-amber-50 border-amber-400'}">
+          <h3 class="font-black text-sm">⏰ BBD මතක් කිරීම — ${txt(cashierFloors()[reminder.floor]||reminder.floor)}</h3>
+          <p class="text-xs">${reminderReady ? `දැන් ${txt(cashierFloors()[reminder.floor])} එකේ Rs. ${currency(remFloorBal)} තියෙනවා. <b>දැන් රු. 1,000 වෙන් කරන්නද?</b>` : `${txt(cashierFloors()[reminder.floor])} එකේ තාම Rs. ${currency(remFloorBal)} යි. මුදල් ප්‍රමාණවත් වුණාම මෙතනින් වෙන් කරන්න පුළුවන්.`}</p>
+          <div class="flex flex-wrap gap-2">
+            ${reminderReady ? `<button onclick="radsBBDAllocate(true)" class="bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black">✅ ඔව් — දැන් රු. 1,000 වෙන් කරන්න</button>` : ''}
+            <button onclick="radsBBDCancelReminder()" class="bg-gray-800 text-white px-3 py-2 rounded-xl text-xs font-bold">මතක් කිරීම අයින් කරන්න</button>
+          </div>
+        </div>` : ''}
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h3 class="font-black text-sm">💸 BBD එකෙන් මුදල් ගන්න</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <label class="text-xs font-bold">කවුද ගත්තේ<select id="bbd_person" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1">${cloudData.staff.map(s => `<option value="${s.name}">${s.name} (${s.id})</option>`).join('')}</select></label>
+            <label class="text-xs font-bold">ගත් මුදල (Rs.)<input id="bbd_amount" type="number" min="0.01" step="0.01" max="${bal}" placeholder="උදා: 300" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+            <label class="text-xs font-bold">හේතුව / Reason<input id="bbd_reason" type="text" placeholder="මොකටද ගත්තේ?" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+          </div>
+          <p class="text-[11px] text-gray-500">ගත්තාට පස්සේ BBD ඉතිරිය: <b id="bbd-after">Rs. ${currency(bal)}</b></p>
+          <button onclick="radsBBDTake()" class="bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs font-black" ${bal<=0?'disabled':''}>− BBD එකෙන් ගන්න</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h3 class="font-black text-sm">🔄 BBD නැවත වෙන් කරන්න — රු. 1,000 (BBD ඉතිරිය රු. 0 වුණාම විතරයි)</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label class="text-xs font-bold">කෝන් Cashier එකෙන්ද වෙන් කරන්නේ?<select id="bbd_floor" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1">${cashierOptions(ui.selectedCashierFloor)}</select></label>
+            <div class="flex items-end"><button onclick="radsBBDAllocate(false)" class="bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black w-full" ${bal!==0?'disabled':''}>+ රු. 1,000 වෙන් කරන්න</button></div>
+          </div>
+          ${bal!==0 ? '<p class="text-[11px] text-amber-700 font-bold">⚠️ BBD එකේ තාම Rs. '+currency(bal)+' ඉතුරුයි. ඉතිරිය රු. 0 වුණාම තමයි නැවත වෙන් කරන්න පුළුවන්.</p>' : '<p class="text-[11px] text-gray-500">තෝරපු Cashier එකෙන් රු. 1,000 අඩු වෙලා BBD එකට එකතු වෙනවා.</p>'}
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-1">
+          <h3 class="font-black text-sm">📋 BBD History</h3>
+          ${hist.length ? hist.map(h => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${h.date}</b> • ${h.type==='take'?'💸 ගත්තා':'🔄 වෙන් කළා'} — ${txt(h.person||h.floor||'')} ${h.reason? '— '+txt(h.reason):''}</span><span class="font-black ${h.type==='take'?'text-rose-700':'text-emerald-700'}">${h.type==='take'?'-':'+'} Rs. ${currency(h.amount)} · ඉතිරි Rs. ${currency(h.balanceAfter)}</span></div>`).join('') : '<p class="text-xs text-gray-500">තාම BBD සටහනක් නැහැ.</p>'}
+        </div>
+      </div>
+    `;
+  }
+
   function renderCashierHome() {
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
+    if(ui.cashierTab==='expense') return renderCashierExpenseTab(bals, mStats);
+    if(ui.cashierTab==='bbd') return renderCashierBBDTab(bals);
     const c = ui.coins;
     const countedTotal = (c.c5000 * 5000) + (c.c2000 * 2000) + (c.c1000 * 1000) + (c.c500 * 500) + (c.c100 * 100) + (c.c50 * 50) + (c.c20 * 20) + (c.c10 * 10) + (c.c5 * 5);
     const sysBal = bals[ui.selectedCashierFloor];
@@ -2226,15 +2459,20 @@
 
     return `
       <div class="max-w-6xl mx-auto p-4 space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">💰 Cashier Home</button>
+          <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💸 Expense (වියදම්) →</button>
+          <button onclick="ui.cashierTab='bbd'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">📦 BBD: Rs. ${currency(bbdBalanceOf(cloudData))}</button>
+        </div>
         ${isBossOrFamily(ui.user)?'<button type="button" class="bg-black text-white px-3 py-2 rounded" onclick="radsAddCashier()">+ Add Cashier Counter</button>':''}
         <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
           <div>
             <span class="text-[11px] font-bold text-gray-500">SELECT CASH REGISTER (Midnight Auto-Reset at 12:00 AM)</span>
             <div class="flex flex-wrap gap-2 mt-1">
-              ${Object.keys(cashierFloors()).map(f => `
-                <button onclick="ui.selectedCashierFloor='${f}'; ui.draftBill.floor='${f}'; render();"
-                  class="px-3 py-1.5 rounded-xl text-xs font-black ${ui.selectedCashierFloor===f ? 'bg-[#E31E24] text-white' : 'bg-gray-100'}">
-                  ${txt(cashierFloors()[f])}: Rs. ${currency(bals[f])}
+              ${Object.keys(displayCashierFloors()).map(f => `
+                <button onclick="ui.selectedCashierFloor='${f}'; render();"
+                  class="px-3 py-1.5 rounded-xl text-xs font-black ${ui.selectedCashierFloor===f ? 'bg-blue-600 text-white ring-4 ring-blue-300 shadow-lg scale-[1.03] border-2 border-blue-800' : 'bg-gray-100'}">
+                  ${ui.selectedCashierFloor===f?'✓ SELECTED • ':''}${txt(cashierFloors()[f])}: Rs. ${currency(bals[f])}
                 </button>
               `).join('')}
             </div>
@@ -2282,32 +2520,9 @@
           ${(cloudData.shiftTransfers || []).slice(0, 3).map(st => `<div class="text-[11px] text-gray-300"><b>${st.time}</b> | ${st.floor}: <b>${st.from}</b> → <b>${st.to}</b> (Rs. ${st.amount})</div>`).join('')}
         </div>
 
-        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
-          <h3 class="font-black text-sm">💸 PETTY CASH & EXPENSES (Deducts from Register + Sound)</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-            <select id="ew_person" class="border rounded-lg px-2 py-1.5 text-xs font-bold">
-              ${cloudData.staff.map(s => `<option value="${s.name}">${s.name} (${s.id})</option>`).join('')}
-            </select>
-            <input id="ew_reason" type="text" placeholder="වියදම (Reason)..." class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
-            <input id="ew_amount" type="number" placeholder="Amount (Rs.)" class="border rounded-lg px-2 py-1.5 text-xs font-bold" />
-            <select id="ew_floor" disabled class="border rounded-lg px-2 py-1.5 text-xs font-bold">
-${cashierOptions(ui.selectedCashierFloor)}</select>
-          </div>
-          <div class="flex flex-wrap gap-1.5">
-            <button onclick="addExtraWork('⛽ Fuel')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ ⛽ Fuel</button>
-            <button onclick="addExtraWork('🚚 Lorry/Courier')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ 🚚 Lorry/Courier</button>
-            <button onclick="addExtraWork('🛠️ Material')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ 🛠️ Material</button>
-            <button onclick="addExtraWork('🧹 Office')" class="bg-gray-800 text-white px-2.5 py-1 rounded-lg text-xs font-bold">+ 🧹 Office</button>
-            <button onclick="addExtraWork('Family withdrawal')">Family withdrawal</button><button onclick="addExtraWork('')" class="bg-[#E31E24] text-white px-3 py-1 rounded-lg text-xs font-black ml-auto">+ Add Expense</button>
-          </div>
-          <div class="space-y-1 pt-2">
-            ${cloudData.extraWorks.filter(e=>!e.voidDetails).slice(0, 8).map(e => `
-              <div class="flex justify-between text-xs border-b py-1.5">
-                <span><b>${e.date}</b> • ${e.person} — <b>${e.reason}</b> (${e.floor})</span>
-                <span class="font-black text-rose-700">Rs. ${e.amount}</span>
-              </div>
-            `).join('')}
-          </div>
+        <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
+          <div><h3 class="font-black text-sm">💸 Expense / වියදම් — වෙනම Tab එකක්</h3><p class="text-xs text-gray-500 mt-0.5">වියදම් දැන් Cashier Home එකේ නැහැ. Expense tab එකෙන් වෙනම add කරන්න.</p></div>
+          <button onclick="ui.cashierTab='expense'; render();" class="bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs font-black">💸 Expense Tab එකට යන්න →</button>
         </div>
       </div>
     `;
@@ -2447,7 +2662,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
             <div class="bg-gray-50 p-2 rounded-xl border grid grid-cols-12 gap-1.5 items-end">
               <div class="col-span-12 sm:col-span-4">
                 <label class="text-[9px] font-bold text-gray-500 block">Item</label>
-                <input list="rate_items_list" type="text" value="${it.baseName || it.name}" onchange="onBillItemSelect(${idx}, this.value, 'draftQuote')" placeholder="Item" class="w-full border rounded px-2 py-1 text-xs font-bold bg-white" />
+                <input list="rate_items_list" type="text" value="${txt(it.baseName || it.name)}" onchange="onBillItemSelect(${idx}, this.value, 'draftQuote')" placeholder="Item" class="w-full border rounded px-2 py-1 text-xs font-bold bg-white" />
               </div>
               <div class="col-span-3 sm:col-span-2">
                 <label class="text-[9px] font-bold text-gray-500 block text-center">W</label>
@@ -2656,6 +2871,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
   function renderStock() {
     return `
       <div class="max-w-5xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4">
+        <button type="button" class="rads-cash-primary mb-3" onclick="setPage('ground-flow-stock')">Ground Flow Stock</button>
         <label class="block mb-3">Search Material<input id="rads-stock-search" type="search" class="ml-2 border rounded p-2" placeholder="Material or category" value="${txt(ui.stockSearch)}"></label>
         <h2 class="font-black text-base mb-1">📦 WAREHOUSE STOCK (Manual Mark Only — 1-Roll Low Stock Alert)</h2>
         ${canUpdateStock(ui.user)?`<button onclick="radsStockChange(-1,'new')">+ New Stock Item</button>`:""}<p class="text-xs text-gray-500 mb-3">තීන්ත බෝතලයක් හෝ රෝලක් ගත් විගස "- Use 1" Mark කරන්න. ඉතුරු 1ක් වූ විගස Alert එකක් එයි.</p>
@@ -2803,8 +3019,8 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
             <h3 class="font-black text-xs bg-gray-100 p-1.5 mb-1">1. සල්ලි ආපු විදිය (DETAILED INCOME — BILLS & TRANSFERS)</h3>
             <table class="w-full border-collapse text-[11px]">
               <tr class="border-b font-bold"><th class="p-1 text-left">Bill/Ref</th><th class="p-1 text-left">Customer & Items</th><th class="p-1 text-left">Mode</th><th class="p-1 text-right">Total</th><th class="p-1 text-right">Received</th><th class="p-1 text-right">Due</th></tr>
-              ${todayBills.map(b => `<tr class="border-b"><td class="p-1 font-bold">${b.id}</td><td class="p-1">${b.customer} (${b.items.map(i=>i.name).join(', ')})</td><td class="p-1">${b.payMethod||'Cash'}</td><td class="p-1 text-right">Rs.${b.total}</td><td class="p-1 text-right font-bold text-green-700">Rs.${(b.advance||0)+(b.bankPaid||0)}</td><td class="p-1 text-right text-red-700">Rs.${b.balance}</td></tr>`).join('')}
-              ${todayBank.map(bt => `<tr class="border-b bg-cyan-50"><td class="p-1 font-bold">${bt.ref}</td><td class="p-1">${bt.customer}</td><td class="p-1">Bank Transfer</td><td class="p-1 text-right">-</td><td class="p-1 text-right font-bold text-cyan-800">Rs.${bt.amount}</td><td class="p-1 text-right">0</td></tr>`).join('')}
+              ${todayBills.map(b => `<tr class="border-b"><td class="p-1 font-bold">${b.id}</td><td class="p-1">${txt(b.customer)} (${txt(b.items.map(i=>i.name).join(', '))})</td><td class="p-1">${b.payMethod||'Cash'}</td><td class="p-1 text-right">Rs.${b.total}</td><td class="p-1 text-right font-bold text-green-700">Rs.${(b.advance||0)+(b.bankPaid||0)}</td><td class="p-1 text-right text-red-700">Rs.${b.balance}</td></tr>`).join('')}
+              ${todayBank.map(bt => `<tr class="border-b bg-cyan-50"><td class="p-1 font-bold">${bt.ref}</td><td class="p-1">${txt(bt.customer)}</td><td class="p-1">Bank Transfer</td><td class="p-1 text-right">-</td><td class="p-1 text-right font-bold text-cyan-800">Rs.${bt.amount}</td><td class="p-1 text-right">0</td></tr>`).join('')}
             </table>
           </div>
 
@@ -2990,7 +3206,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
 
         <div class="bg-white p-4 rounded-2xl shadow border space-y-2">
           <h3 class="font-black text-sm">🛕 REPEAT TEMPLES, SHOPS & COMPANIES DIRECTORY</h3>
-          ${(cloudData.clientsDir || []).map(c => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${c.name}</b> (${c.phone || '-'})</span><span class="font-bold text-gray-500">Orders: ${c.jobsCount}</span></div>`).join('')}
+          ${(cloudData.clientsDir || []).map(c => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${txt(c.name)}</b> (${txt(c.phone || '-')})</span><span class="font-bold text-gray-500">Orders: ${c.jobsCount}</span></div>`).join('')}
         </div>
       </div>
     `;
@@ -3031,6 +3247,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
       case 'quotation': body = renderQuotation(); break;
       case 'tea': body = renderTeaMoney(); break;
       case 'stock': body = renderStock(); break;
+      case 'ground-flow-stock': body = renderGroundFlowStock(); break;
       case 'bookings': body = renderBookings(); break;
       case 'payroll': body = renderPayrollAndFingerprint(); break;
       case 'report': body = renderDailyReport(); break;
@@ -3042,7 +3259,7 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
         const pBills = cloudData.bills.filter(b => b.status === 'Pending' || b.status === 'Balance Due');
         body = `<div class="max-w-4xl mx-auto p-4 bg-white rounded-2xl shadow border mt-4 space-y-2">
           <h2 class="font-black text-base">⏳ PENDING & ණය BILLS (${pBills.length})</h2>
-          ${pBills.map(b => `<div class="flex justify-between items-center border-b py-2 text-xs"><span><b>${b.id}</b> (${b.customer}) — Due: <b class="text-red-600">Rs.${b.balance}</b></span><button onclick="collectPayment('${b.id}')" class="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold">Collect</button></div>`).join('')}
+          ${pBills.map(b => `<div class="flex justify-between items-center border-b py-2 text-xs"><span><b>${txt(b.id)}</b> (${txt(b.customer)}) — Due: <b class="text-red-600">Rs.${b.balance}</b></span><button onclick="collectPayment('${b.id}')" class="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold">Collect</button></div>`).join('')}
         </div>`;
         break;
       default:
@@ -3075,15 +3292,33 @@ ${cashierOptions(ui.selectedCashierFloor)}</select>
     `;
   }
 
+// V12 - SHOP TRUTH: 3 real cashiers - Ground, Upper A, Upper B (key 'Counter3' in code).
+// "Cashier 03" / "A Section / B Section" never existed - those were invented labels.
+// Dropdowns show the shop names (Ground / Upper A / Upper B).
+// Bills show: Ground -> "Ground", Upper A -> "Cashier A", Upper B -> "Cashier B".
 const FLOOR = { Ground:'Ground', Upper:'Upper A', Counter3:'Upper B' };
+const DISPLAY_FLOORS = ['Ground','Upper','Counter3'];
+function displayCashierFloors() { return Object.fromEntries(DISPLAY_FLOORS.map(k=>[k,FLOOR[k]])); }
+function billCashierLabel(f) { const k=normalizeFloor(f); return k==='Upper' ? 'Cashier A' : k==='Counter3' ? 'Cashier B' : 'Ground'; }
+function cashierLabelForDisplay(v) { // old saved values -> current bill labels
+  if (v==='Upper'||v==='Upper A'||v==='B Section') return 'Cashier A';
+  if (v==='Counter3'||v==='Upper B') return 'Cashier B';
+  if (v==='A Section') return 'Ground';
+  if (v==='Cashier A'||v==='Cashier B'||v==='Ground') return v;
+  return v||'Ground';
+}
+function normalizeFloor(f) {
+  const m = {'Upper A':'Upper','Upper B':'Counter3','Cashier A':'Upper','Cashier B':'Counter3','B Section':'Upper','A Section':'Ground'};
+  return m[f] || f || 'Ground';
+}
 function cashierFloors(state=cloudData) {
-  return {...FLOOR,...Object.fromEntries((state.cashierCounters||[]).map(counter=>[counter.id,counter.name]))};
+  return {...FLOOR, ...Object.fromEntries((state.cashierCounters||[]).map(counter=>[counter.id,counter.name]))};
 }
 function cashierOptions(selected) {
-  return Object.entries(cashierFloors()).map(([id,label])=>`<option value="${txt(id)}" ${id===selected?'selected':''}>${txt(label)}</option>`).join('');
+  return Object.entries(displayCashierFloors()).map(([id,label])=>`<option value="${txt(id)}" ${id===selected?'selected':''}>${txt(label)}</option>`).join('');
 }
 function cashierBalanceList(balances) {
-  return Object.entries(cashierFloors()).map(([id,label])=>`${txt(label)}: <b>Rs. ${currency(balances[id])}</b>`).join(' | ');
+  return Object.entries(displayCashierFloors()).map(([id,label])=>`${txt(label)}: <b>Rs. ${currency(balances[id])}</b>`).join(' | ');
 }
 window.radsAddCashier = async () => {
   if (!isBossOrFamily(ui.user)) return;
@@ -3108,7 +3343,10 @@ const txt = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 const fixed = value => Math.round(Number(value)*100)/100;
 const currency = value => new Intl.NumberFormat('en-LK',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value)||0);
 const isPlate = item => /^number plate$/i.test((item.baseName||item.name||'').trim());
-const workSection = item => /^(print sticker|sticker \([346] pass\)|sticker with lamination|flex \(|a4 print)/i.test(item.baseName||item.name||'')?'Upper':'Ground';
+// FIX (V7): "Flex Board Single Side" and "Sticker board" did NOT match the old regex
+  // (it only matched "flex (" and "sticker (X pass)"), so they fell through to Ground.
+  // Work Section = where the WORK is done, NOT where the money goes.
+  const workSection = (item, floor) => billCashierLabel(floor); // V12: හැම item එකකටම තමන්ගේ Cashier එකක්. ඒ item එකේ සල්ලි + වැඩේ දෙකම යන්නේ ඒ Cashier එකට. Item එකේ නමින් තීරණය වෙන්නේ නැහැ.
 const uuid = () => crypto.randomUUID();
 const todayISO = () => new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Colombo',year:'numeric',month:'2-digit',day:'2-digit'}).format();
 getColomboDate = todayISO;
@@ -3152,13 +3390,28 @@ function takeBillSnapshot() {
   const inputPhone = String(d.custPhone||'').trim();
   d.custPhone = clientPhone(inputPhone);
   if (inputPhone && !d.custPhone) throw Error('WhatsApp අංකය පරීක්ෂා කරන්න.');
-  const items = d.items.filter(i => String(i.name||i.baseName||'').trim());
-  if (!items.length || items.length !== d.items.length) throw Error('සෑම item එකකටම නමක් ඇතුළත් කරන්න.');
+  // FIX: Bill එකේ Cashier = NEW BILL Cash Register dropdown එක. Cash Balance එකේ Blue selection එකත් ඒකටම sync කරන්න.
+  if(d.floor && Object.hasOwn(cashierFloors(),d.floor)) ui.selectedCashierFloor = d.floor;
+  else d.floor = ui.selectedCashierFloor;
+  d.floor = normalizeFloor(d.floor); ui.selectedCashierFloor = normalizeFloor(ui.selectedCashierFloor);
+  const isReasonOnly = !!d.reasonOnly;
+  let items = d.items.filter(i => String(i.name||i.baseName||'').trim());
+  if (isReasonOnly) {
+    const reason = String(d.reasonText||'').trim();
+    const rAmt = fixed(d.reasonAmount||0);
+    if (!reason) throw Error('Item නැති Bill එකට හේතුව (Reason) දාන්න. උදා: පරණ Bill එකක ඉතිරිය, Advance, Donation');
+    if (!Number.isFinite(rAmt)||rAmt<=0) throw Error('Item නැති Bill එකට Amount එක (Rs.) දාන්න.');
+    items = [{baseName:reason, name:reason, qty:1, price:rAmt, reasonOnly:true, section:'Reason Only'}];
+  } else {
+    if (!items.length || items.length !== d.items.length) throw Error('සෑම item එකකටම නමක් ඇතුළත් කරන්න.');
+  }
+  // FIX: Plate bills are ALWAYS Ground - force it BEFORE mapping items, so section/cashier uses Ground, not the dropdown value.
+  if (items.some(isPlate)) d.floor='Ground';
   d.items = items.map(i => {
     const w = Number(i.w||0), h = Number(i.h||0);
     const qty = Number(i.qty), price = fixed(i.price);
     if (!Number.isSafeInteger(qty)||qty<1||!Number.isFinite(price)||price<=0||w<0||h<0||!!w!==!!h) throw Error('Item size, quantity සහ unit price පරීක්ෂා කරන්න.');
-    return {...i,qty,price,section:workSection(i)};
+    const itemFloor = isPlate(i) ? 'Ground' : normalizeFloor(i.floor||d.floor); return {...i,floor:itemFloor,qty,price,section:workSection(i,itemFloor)}; // V12: per-item cashier
   });
   if (d.items.some(isPlate) && (d.customer==='-' || !d.custPhone || !d.vehicle?.trim())) throw Error('Number Plate සඳහා නම, WhatsApp අංකය සහ vehicle number එක දාන්න.');
   if (items.some(isPlate)) {
@@ -3175,32 +3428,40 @@ function takeBillSnapshot() {
   if (![d.serviceCharge,d.total,d.paid].every(Number.isFinite)||d.total<=0||d.serviceCharge<0||d.paid<0||d.paid>d.total) throw Error('Total, service charge සහ ගෙවූ මුදල පරීක්ෂා කරන්න.');
   d.balance = fixed(d.total-d.paid);
   d.date = todayISO();
+  d.time = getColomboNow().toTimeString().slice(0,5); // V12: bill එකේ වෙලාව
   d.branch ||= 'Medirigiriya';
   d.cashier=ui.user.name;
   return d;
 }
 function draftReceipt(id) {
-  const d = ui.draftBill;
+  // FIX: never mutate ui.draftBill here - recalcBillLive() calls this on every keystroke.
+  // Previously this overwrote the real items with the Reason-Only pseudo-item.
+  const d = cloneState(ui.draftBill);
+  if(d.reasonOnly && String(d.reasonText||'').trim() && Number(d.reasonAmount||0)>0){
+    d.items = [{baseName:String(d.reasonText).trim(), name:String(d.reasonText).trim(), qty:1, price:fixed(d.reasonAmount), reasonOnly:true}];
+  }
   const total = billDraftTotal(d);
   const paid = d.pending ? 0 : billCashPayment(d,total)?.paid ?? Number(d.advance||0);
-  return printableBill({...d,id,date:todayISO(),cashier:ui.user.name,floor:d.items.some(isPlate)?'Ground':d.floor,total,paid,balance:Math.max(0,total-paid)},true);
+  d.items.forEach(it=>{ it.section = billCashierLabel(normalizeFloor(it.floor||d.floor)); }); // V12: preview එකේත් හැම item එකකම Cashier එක පෙන්නන්න
+  return printableBill({...d,id,date:todayISO(),time:d.time||getColomboNow().toTimeString().slice(0,5),cashier:ui.user.name,floor:d.items.some(isPlate)?'Ground':d.floor,total,paid,balance:Math.max(0,total-paid)},true);
 }
 function printableBill(b,draft=false) {
   const paid = draft ? b.paid : Number(b.advance||0)+Number(b.bankPaid||0);
-  const section = {Ground:'A Section',Upper:'B Section',Counter3:'B Section'}[b.floor] || cashierFloors()[b.floor];
+  const floor = normalizeFloor(b.floor); const section = billCashierLabel(floor); // V12: receipt shows Cashier A / Cashier B / Ground
   const name = [b.title,b.customer].filter(Boolean).join(' ') || '—';
   return `<article class="rads-receipt" style="padding:1.5mm">
     <h2>ROSHAN ADVERTISING</h2><center>SERVICES (PVT) LTD.<br>Medirigiriya - 027 224 8828</center><hr>
-    <div>${txt(b.id||'Draft')} · ${txt(b.date)}</div>
+    <div>${txt(b.id||'Draft')} · ${txt(b.date)}${b.time?` · වෙලාව ${txt(b.time)}`:''}</div>
     <div>Your Name: ${txt(name)}</div>
     ${b.custPhone?`<div>WhatsApp: ${txt(b.custPhone)}</div>`:''}
     ${b.vehicle?`<div>Vehicle: ${txt(b.vehicle)}</div>`:''}
     <div>Cashier: ${txt(b.cashier)}${section?' ('+txt(section)+')':''}</div>
+    ${draft?`<div class="rads-internal-note" style="font-weight:900;color:#000">💰 මුදල් + වැඩේ දෙකම යන්නේ: ${txt(section)} ට (Draft Preview එකේ විතරයි — Print වෙන Receipt එකේ මේ පේළිය නැහැ)</div>`:``}
     <div>Payment: ${txt(b.payMethod||'Cash')}</div><hr>
     ${b.items.map(i=>{
       const hasRate=Number(i.rate)>0;
       const unit=hasRate&&Number(i.w)>0&&Number(i.h)>0?'sq ft':'unit';
-      return `<div>${txt(i.name||i.baseName||'Item')}${draft&&i.section?' · '+txt(i.section):''}</div>
+      return `<div>${txt(i.name||i.baseName||'Item')}${i.section?(i.reasonOnly?' · Cashier: '+txt(cashierLabelForDisplay(i.section)):' · වැඩේ + සල්ලි: '+txt(cashierLabelForDisplay(i.section))):''}</div>
         <div style="font-size:12px">Rate: Rs. ${currency(hasRate?i.rate:i.price)} / ${unit}</div>
         <div class="rads-line"><span>${txt(i.qty)} × ${currency(i.price)}</span><span>${currency(i.qty*i.price)}</span></div>`;
     }).join('')}
@@ -3264,7 +3525,7 @@ window.saveNewBill = (printAfter=false) => {
   try {d=takeBillSnapshot();} catch(err){return alert(err.message);}
   savedReceipt=null;
   const request=uuid();
-  review.innerHTML=`<h2>බිල තහවුරු කරන්න</h2><p>විස්තර සහ cashier එක පරීක්ෂා කරන්න.</p>${printableBill(d,true)}
+  review.innerHTML=`<h2>බිල තහවුරු කරන්න</h2><p style="background:#2563eb;color:#fff;font-weight:900;padding:10px 12px;border-radius:10px;font-size:16px">💰 සල්ලි + වැඩේ දෙකම යන්නේ: ${txt(billCashierLabel(d.floor))} ට<br><span style="font-size:12px">⚠️ Save කරන්න කලින් මේ Cashier එක හරියටම බලන්න</span></p><p>විස්තර සහ cashier එක පරීක්ෂා කරන්න.</p>${printableBill(d,true)}
   <label><input type="checkbox" id="rads-reviewed"> මම විස්තර පරීක්ෂා කළා</label><p role="alert" id="rads-error"></p>
   <div class="rads-actions"><button type="button" data-edit>ආපසු සංස්කරණය</button><button type="button" data-save disabled>${printAfter?'තහවුරු කර Save & Print':'තහවුරු කර Save'}</button></div>`;
   const approve = review.querySelector('[data-save]');
@@ -3286,7 +3547,19 @@ window.saveNewBill = (printAfter=false) => {
           if(String(d.plateHours??'').trim())b.plateOrder.dueAt=plateDue(d.plateHours);
         }
         delete b.plateHours;
-        if(d.paid)receiveMoney(b,d.paid,d.payMethod,d.floor,d.date,d.cashier,request);
+        if(d.paid){
+          // V12: Paid මුදල item cashier වලට බෙදලා දාන්න - හැම item එකකම සල්ලි ඒ item එකේ Cashier එකට.
+          const lines=[...d.items.map(i=>({amount:fixed(i.price*i.qty),floor:normalizeFloor(i.floor||d.floor)})),{amount:fixed(d.serviceCharge||0),floor:normalizeFloor(d.floor)}].filter(l=>l.amount>0);
+          if(!lines.length)receiveMoney(b,d.paid,d.payMethod,d.floor,d.date,d.cashier,request);
+          else{
+            const totalLines=lines.reduce((s,l)=>s+l.amount,0); let remaining=fixed(d.paid);
+            lines.forEach((l,idx)=>{
+              let share = idx===lines.length-1 ? remaining : fixed(Math.round(l.amount/totalLines*d.paid*100)/100);
+              share = fixed(Math.min(share, remaining));
+              if(share>0){ receiveMoney(b,share,d.payMethod,l.floor,d.date,d.cashier,request+'-'+idx); remaining=fixed(remaining-share); }
+            });
+          }
+        }
         if(d.createJob){
           s.jobs ||= [];
           s.jobs.unshift({id:nextId(s.jobs,'',4),billNo:b.id,name:b.items.map(i=>i.name).join(', '),cat:'Bill Job',urgent:false,date:b.date,finish:b.date,giver:p.name,creatorId:p.id,creatorSection:p.sector||p.role,designer:'-',constructor:'-',amount:b.total,bankPaid:0,branch:b.branch,steps:{Mashimant:false,Quotation:false,JobStart:true,DesignerSelect:false,ArtworkOk:false,Print:false,Constructor:false,WorkStart:false,JobComplete:false,Invoice:true,Payment:b.balance===0}});
@@ -3301,7 +3574,7 @@ window.saveNewBill = (printAfter=false) => {
         return b;
       });
       if(d.paid)playSoundEffect('cashIn');
-      ui.draftBill={customer:'',custPhone:'',date:todayISO(),cashier:ui.user.name,floor:ui.selectedCashierFloor,payMethod:'Cash',items:[{baseName:'',name:'',qty:1,price:0}],pending:false,serviceCharge:0,serviceNote:''};
+      ui.draftBill={customer:'',custPhone:'',date:todayISO(),cashier:ui.user.name,floor:ui.selectedCashierFloor,payMethod:'Cash',items:[{baseName:'',name:'',qty:1,price:0}],pending:false,serviceCharge:0,serviceNote:'',branch:'Medirigiriya',title:'',vehicle:'',plateHours:'',createJob:false,reasonOnly:false,reasonText:'',reasonAmount:0,advance:0,cashTendered:''};
       render();
       showSavedReceipt(bill);
       if(printAfter)doPrint(printableBill(bill),'receipt');
@@ -3311,7 +3584,7 @@ window.saveNewBill = (printAfter=false) => {
 review.addEventListener('cancel',e=>{if(busyCounter)e.preventDefault();});
 function showSavedReceipt(b) {
   savedReceipt=b;
-  review.innerHTML=`<h2>${txt(b.id)}</h2><div class="rads-actions">
+  review.innerHTML=`<h2>${txt(b.id)}</h2><div style="background:#2563eb;color:#fff;font-weight:900;padding:10px 12px;border-radius:10px;font-size:16px">💰 අවසානෙට සල්ලි ගියේ: ${txt(cashierFloors()[b.floor]||b.floor)} ට${b.payMethod==='Bank Transfer'?' · 🏦 Bank Transfer — Cashier එකට එකතු වුණේ නැහැ':''}</div><div class="rads-actions">
   ${b.status!=='Void'&&b.balance>0?`<button type="button" data-quick-collect>ඉතිරි මුදල ගන්න · Rs. ${currency(b.balance)}</button>`:''}
   <button type="button" data-quick-history>Customer History</button></div>${printableBill(b)}<div class="rads-actions"><button data-print>මුද්‍රණය</button>${clientPhone(b.custPhone)?'<button data-wa>WhatsApp</button>':''}<button data-close>වසන්න</button></div>`;
   review.querySelector('[data-quick-history]').onclick=()=>showCashierHistory(b);
@@ -3362,6 +3635,9 @@ calcCashierBalances = function(state=cloudData) {
     if(advance.issuedDate===day)result[advance.floor]-=Number(advance.amount);
     if(advance.settledDate===day)result[advance.floor]+=Number(advance.returned);
   }
+  for(const a of (state.bbdAllocations||[]).filter(a=>a.date===day&&!a.voidDetails)){
+    if(Object.hasOwn(floors,a.floor))result[a.floor]-=Number(a.amount||0);
+  }
   result.Total=fixed(Object.keys(floors).reduce((sum,id)=>sum+result[id],0));
   return result;
 };
@@ -3405,7 +3681,8 @@ window.collectPayment = id => {
         if(!isManagerOrCashier(person))throw Error('Cashier access අවශ්‍යයි.');
         const bill=state.bills.find(b=>b.id===id&&b.status!=='Void');
         if(!bill)throw Error('Bill එක හමු වුණේ නැහැ.');
-        if(!Object.hasOwn(cashierFloors(state),register))throw Error('Cashier එක තෝරන්න.');
+        // FIX: Bank Transfer has no cashier register - don't block it for a missing/invalid floor.
+        if(mode!=='Bank Transfer' && !Object.hasOwn(cashierFloors(state),register))throw Error('Cashier එක තෝරන්න.');
         receiveMoney(bill,paid,mode,bill.items.some(isPlate)?'Ground':register,date,person.name,request);
         for(const job of state.jobs||[])if(job.billNo===id&&bill.balance===0)job.steps.Payment=true;
         return bill;
@@ -3637,6 +3914,9 @@ window.radsStaff = async (mode,selectedId,disable) => {
     if(mode==='toggle')radsManageStaff();
   }catch(err){alert(err.message);}
 };
+window.radsSmartFullPaid = () => { const d=ui.draftBill; d.pending=false; d.cashTendered=''; d.advance=fixed(billDraftTotal(d)); render(); };
+window.radsSmartPending = () => { const d=ui.draftBill; d.pending=true; d.advance=0; d.cashTendered=''; render(); };
+window.radsSmartClearCash = () => { ui.draftBill.cashTendered=''; render(); };
 window.radsBillButton = (type) => {
   const d=ui.draftBill;
   if(type==='plate'){
@@ -3644,13 +3924,16 @@ window.radsBillButton = (type) => {
     const plate={baseName:'Number Plate',name:'Number Plate',qty:1,price:0,w:'',h:'',rate:''};
     const blank=d.items.findIndex(item=>!item.name&&!item.baseName);
     if(blank>=0)d.items.splice(blank,1,plate);else d.items.push(plate);
-    d.floor='Ground';
+    d.floor='Ground'; ui.selectedCashierFloor='Ground';
   }
   if(type==='paid'){
     d.pending=false;
-    d.advance=fixed(d.items.reduce((t,i)=>t+Number(i.qty||0)*Number(i.price||0),0)+Number(d.serviceCharge||0));
+    d.cashTendered='';
+    // FIX: Reason-Only bill has no items - total is reasonAmount + serviceCharge.
+    // billDraftTotal() already does this; paid button must use the SAME total.
+    d.advance=fixed(billDraftTotal(d));
   }
-  if(type==='unpaid'){d.pending=true;d.advance=0;}
+  if(type==='unpaid'){d.pending=true;d.advance=0;d.cashTendered='';}
   render();
   if(type==='plate')document.getElementById('rads-plate-province')?.focus();
 };
@@ -3978,7 +4261,7 @@ function renderCashFlowMonitor(root) {
   }
 }
 function cashierMonitor(balances, readOnly=false) {
-  const counters = Object.entries(cashierFloors());
+  const counters = Object.entries(displayCashierFloors());
   const money = amount => 'Rs. ' + currency(amount);
   const cash = balances.todayCashIncome;
   const bank = balances.todayBankIncome;
@@ -4000,15 +4283,17 @@ function cashierMonitor(balances, readOnly=false) {
         <p class="text-xs">${label}</p><strong class="block mt-1 text-base sm:text-xl">${money(amount)}</strong>
       </div>`).join('')}
     </div>
-    <h3 class="font-black">Counter අනුව Cash Balance</h3>
+    <h3 class="font-black">Counter අනුව Cash Balance</h3><p class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-300 rounded-lg px-2 py-1.5">🔵 Blue වෙලා ✓ SELECTED කියලා තියෙන එක තමයි දැන් තෝරලා තියෙන Cashier එක — <span id="rads-sel-cashier-name"></span></p>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
       ${counters.map(([id,label])=>{
         const content=`<span class="block break-words text-xs">${txt(label)}</span>
           <strong class="block ${balances[id]<0?'text-red-700':''}">${money(balances[id])}</strong>`;
-        const className='rounded-lg border bg-white p-2 text-left';
-        return readOnly?`<div class="${className}">${content}</div>`:
-          `<button type="button" data-monitor-counter="${txt(id)}" aria-pressed="${id===ui.selectedCashierFloor}"
-            class="${className} hover:border-emerald-600 ${id===ui.selectedCashierFloor?'ring-2 ring-emerald-700':''}">${content}</button>`;
+        const isSel=id===ui.selectedCashierFloor;
+        const className=isSel?'rounded-lg border p-2 text-left rads-counter-selected':'rounded-lg border bg-white p-2 text-left';
+        const content2=isSel?`<span class="rads-selected-badge">✓ SELECTED - මේ Cashier එක තෝරලා තියෙන්නේ</span>`+content:content;
+        return readOnly?`<div class="${className}">${content2}</div>`:
+          `<button type="button" data-monitor-counter="${txt(id)}" aria-pressed="${isSel}"
+            class="${className} hover:border-blue-600">${content2}</button>`;
       }).join('')}
     </div>
     <div class="grid lg:grid-cols-2 gap-3">
@@ -4217,6 +4502,113 @@ window.radsYardForm=(id='',direction='')=>{
   if(!review.open)review.showModal();
 };
 
+const groundMaterials = ['Red PVC', 'Red Luminous', 'Blue Luminous', 'Green', 'Silver', 'Yellow', 'Tinterd'];
+function groundStockRows(state) {
+  const saved = state.groundFlowStock || [];
+  const starter = groundMaterials.map((name, index) => {
+    const id = 'starter-' + index;
+    return saved.find(item => item.id === id) || { id, name, quantity: null, lowAt: null };
+  });
+  return [...starter, ...saved.filter(item => !starter.some(row => row.id === item.id))];
+}
+const groundIsLow = item => item.quantity !== null && item.lowAt !== null && item.quantity <= item.lowAt;
+const groundShortage = item => Math.max(0, Math.round((item.lowAt - item.quantity) * 1000) / 1000);
+function groundShortageReport(items, date) {
+  return [
+    'Ground Flow Stock · අඩු තොග වාර්තාව',
+    'දිනය: ' + date,
+    'අඩු තොග වර්ග: ' + items.length,
+    '',
+    ...items.map(item => `• ${item.name}: ඉතිරි ${yardNumber(item.quantity)} අඩි | අවම ${yardNumber(item.lowAt)} අඩි | සීමාවට මදි ${yardNumber(groundShortage(item))} අඩි`)
+  ].join('\n');
+}
+function groundWhatsApp(businessState) {
+  const samila = businessState.staff.find(person => !person.disabled && /\bsamila\b/i.test(person.name));
+  return clientPhone(samila?.tel);
+}
+function renderGroundFlowStock() {
+  const items = groundStockRows(cloudData);
+  const low = items.filter(groundIsLow);
+  const canEdit = canUpdateStock(ui.user);
+  return `<section class="max-w-5xl mx-auto p-4 space-y-4">
+    <button type="button" class="underline" onclick="setPage('stock')">← Warehouse Stock</button>
+    <div class="bg-white rounded-xl border p-4">
+      <h2 class="text-xl font-black">Ground Flow Stock</h2>
+      <p class="my-2">අඩු තොග ${low.length} · සියලු ප්‍රමාණ අඩිවලින්</p>
+      ${canEdit ? '<button type="button" class="rads-cash-primary" onclick="radsGroundStockChange()">+ Material එකතු කරන්න</button>' : ''}
+      ${low.length ? '<button type="button" class="rads-cash-primary ml-2" onclick="radsGroundWhatsApp()">අඩු තොග වාර්තාව Samilaට යවන්න</button>' : ''}
+      ${low.length && !groundWhatsApp(cloudData) ? '<p class="mt-2 text-red-700">Samilaගේ Staff Profile එකට WhatsApp අංකය ඇතුළත් කරන්න.</p>' : ''}
+      <label class="block mt-3">Material සොයන්න <input type="search" class="border rounded p-2" data-ground-search></label>
+      <div class="overflow-x-auto mt-3"><table class="w-full text-sm text-left">
+        <thead><tr><th>Material</th><th>ඉතිරි අඩි</th><th>අඩු තොග සීමාව</th><th>සීමාවට මදි අඩි</th><th>ක්‍රියාව</th></tr></thead>
+        <tbody>${items.map(item => `<tr class="border-t" data-ground-item="${txt(item.name)}" data-ground-id="${txt(item.id)}">
+          <th scope="row" class="py-2">${txt(item.name)}</th>
+          <td>${item.quantity === null ? 'සටහන් කර නැහැ' : yardNumber(item.quantity)} ${groundIsLow(item) ? '<strong class="text-red-700">අඩුයි</strong>' : ''}</td>
+          <td>${item.lowAt === null ? '—' : yardNumber(item.lowAt)}</td>
+          <td>${groundIsLow(item) ? yardNumber(groundShortage(item)) : '—'}</td>
+          <td>${canEdit ? (item.quantity === null ? '<button type="button" class="underline" data-ground-action="setup">ආරම්භක තොගය දාන්න</button>' : '<button type="button" class="underline mr-2" data-ground-action="in">+ ලැබුණා</button><button type="button" class="underline mr-2" data-ground-action="out">− භාවිත කළා</button><button type="button" class="underline mr-2" data-ground-action="adjust">ඉතිරි අඩි වෙනස් කරන්න</button><button type="button" class="underline" data-ground-action="limit">සීමාව වෙනස් කරන්න</button>') : ''}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div></section>`;
+}
+window.radsGroundWhatsApp = () => {
+  if (!canUpdateStock(ui.user)) return;
+  const phone = groundWhatsApp(cloudData);
+  if (!phone) return alert('Samilaගේ Staff Profile එකට WhatsApp අංකය ඇතුළත් කරන්න.');
+  const low = groundStockRows(cloudData).filter(groundIsLow);
+  if (!low.length) return;
+  openWhatsApp(phone, groundShortageReport(low, todayISO()));
+};
+window.radsGroundStockChange = async (action = 'new', id = '') => {
+  if (!canUpdateStock(ui.user) || busyCounter) return;
+  if (!['new', 'setup', 'in', 'out', 'limit', 'adjust'].includes(action)) return;
+  const current = groundStockRows(cloudData).find(item => item.id === id);
+  if (action !== 'new' && !current) return;
+  const name = action === 'new' ? prompt('Material නම')?.trim() : current.name;
+  if (!name) return;
+  try {
+    if (name.length > 80) throw Error('Material නම අකුරු 80කට සීමා කරන්න.');
+    const isSetup = action === 'new' || action === 'setup';
+    const prompts = {
+      limit: ['අඩු තොග සීමාව (අඩි)', current?.lowAt],
+      adjust: ['දැනට තියෙන සම්පූර්ණ අඩි ගණන', current?.quantity],
+      in: ['ලැබුණු අඩි ගණන', ''],
+      out: ['භාවිත කළ අඩි ගණන', '']
+    };
+    const raw = prompt(...(isSetup ? ['ආරම්භක තොගය (අඩි)', ''] : prompts[action]));
+    if (raw === null) return;
+    const amount = yardQuantity(raw, isSetup || action === 'limit' || action === 'adjust');
+    const limit = isSetup ? prompt('අඩු තොග සීමාව (අඩි)', '0') : null;
+    if (isSetup && limit === null) return;
+    const lowAt = isSetup ? yardQuantity(limit, true) : null;
+    const newId = action === 'new' ? uuid() : id;
+    await commitUpdate('Ground Flow Stock · ' + name + ' · ' + action + ' · ' + amount + ' ft', (state, person) => {
+      if (!canUpdateStock(person)) throw Error('තොග වෙනස් කිරීමට අවසර නැහැ.');
+      const saved = state.groundFlowStock ||= [];
+      const rows = groundStockRows(state);
+      if (action === 'new') {
+        if (rows.some(item => item.name.toLowerCase() === name.toLowerCase())) throw Error('මේ Material එක දැනටමත් තිබෙනවා.');
+        saved.push({ id: newId, name, quantity: amount, lowAt });
+        return;
+      }
+      const item = rows.find(row => row.id === id);
+      if (!item) throw Error('Material එක හමු වුණේ නැහැ.');
+      if (action === 'setup') {
+        if (item.quantity !== null) throw Error('ආරම්භක තොගය දැනටමත් ඇතුළත් කර තිබෙනවා.');
+        saved.push({ ...item, quantity: amount, lowAt });
+        return;
+      }
+      if (item.quantity === null) throw Error('මුලින් ආරම්භක තොගය දාන්න.');
+      if (action === 'limit') item.lowAt = amount;
+      else if (action === 'adjust') {
+        if (item.quantity !== current.quantity) throw Error('තොගය වෙනස් වී තිබෙනවා. අලුත් ගණන බලලා නැවත උත්සාහ කරන්න.');
+        item.quantity = amount;
+      } else item.quantity = yardBalance(item.quantity, amount, action);
+    });
+  } catch (error) {
+    alert(error.message);
+  }
+};
+
 const oldRender = render;
 render = function(){
   oldRender();
@@ -4253,6 +4645,20 @@ render = function(){
     stockSearch.oninput=filter;
     filter();
   }
+  if (ui.page === 'ground-flow-stock' && main) {
+    const search = main.querySelector('[data-ground-search]');
+    const rows = main.querySelectorAll('[data-ground-item]');
+    search.value = ui.groundStockSearch || '';
+    search.oninput = () => {
+      ui.groundStockSearch = search.value;
+      const query = search.value.trim().toLowerCase();
+      rows.forEach(row => { row.hidden = !row.dataset.groundItem.toLowerCase().includes(query); });
+    };
+    search.oninput();
+    main.querySelectorAll('[data-ground-action]').forEach(button => {
+      button.onclick = () => radsGroundStockChange(button.dataset.groundAction, button.closest('tr').dataset.groundId);
+    });
+  }
   if(ui.page==='yard'){
     main?.querySelectorAll('[data-yard-id]').forEach(button=>{button.onclick=()=>radsYardForm(button.dataset.yardId,button.dataset.yardMode);});
   }
@@ -4271,11 +4677,32 @@ render = function(){
     }
   }
   if(isBillingRole()&&!ui.tvMode){
-    const quick=document.createElement('button');
-    quick.type='button';quick.className='rads-quick-bill';quick.textContent='🖨️ Bill +';
-    quick.setAttribute('aria-label','Bill + — අලුත් බිලක් සාදන්න');
-    quick.onclick=()=>{if(ui.page!=='newbill')setPage('newbill');document.getElementById('bill_cust_name')?.focus();};
-    document.getElementById('app').append(quick);
+    // V12: Bottom bar - "Bill +" button එක අයින් කරලා Bill Pay / Get Pay Logo Button 2ක්.
+    const bar=document.createElement('div');
+    bar.className='rads-bottom-paybar';
+    bar.innerHTML=`
+      <div class="rads-paywrap">
+        <button type="button" class="rads-paybtn" title="Bill Pay — සල්ලි ගන්න, වියදම්, Petty, Fuel, BBD" onclick="radsTogglePayMenu('billpay')">
+          <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIbGNtcwIQAABtbnRyUkdCIFhZWiAH4gADABQACQAOAB1hY3NwTVNGVAAAAABzYXdzY3RybAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLWhhbmSdkQA9QICwPUB0LIGepSKOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAABxjcHJ0AAABDAAAAAx3dHB0AAABGAAAABRyWFlaAAABLAAAABRnWFlaAAABQAAAABRiWFlaAAABVAAAABRyVFJDAAABaAAAAGBnVFJDAAABaAAAAGBiVFJDAAABaAAAAGBkZXNjAAAAAAAAAAV1UkdCAAAAAAAAAAAAAAAAdGV4dAAAAABDQzAAWFlaIAAAAAAAAPNUAAEAAAABFslYWVogAAAAAAAAb6AAADjyAAADj1hZWiAAAAAAAABilgAAt4kAABjaWFlaIAAAAAAAACSgAAAPhQAAtsRjdXJ2AAAAAAAAACoAAAB8APgBnAJ1A4MEyQZOCBIKGAxiDvQRzxT2GGocLiBDJKwpai5+M+s5sz/WRldNNlR2XBdkHWyGdVZ+jYgskjacq6eMstu+mcrH12Xkd/H5////2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAQ4BDgDASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAEFAwQGAgf/xAA/EAEAAgECAAkICQUBAAIDAQAAAQIDBBEFBhIUITFBUZEVNFJTcoHB0RMiMjNhYnGSsTVCQ3OhI+HwJIKi8f/EABoBAQADAQEBAAAAAAAAAAAAAAABAwUEAgb/xAAxEQEAAQIDBwMDAwUBAQAAAAAAAQIDBBFREhMUITIzUgUVMSJBcWFioSM0QpGxQ4H/2gAMAwEAAhEDEQA/APn4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//Z" alt="Bill Pay" /><span>Bill Pay</span>
+        </button>
+        <div data-paymenu="billpay" hidden class="rads-paymenu">
+          <button onclick="hidePayMenus(); setPage('pending')">💰 සල්ලි ගන්න</button>
+          <button onclick="hidePayMenus(); ui.cashierTab='expense'; setPage('cashier')">💸 වියදම්</button>
+          <button onclick="hidePayMenus(); ui.cashierTab='home'; setPage('cashier')">🧾 Petty</button>
+          <button onclick="hidePayMenus(); ui.cashierTab='expense'; ui.cashierExpenseCat='⛽ Fuel'; setPage('cashier')">⛽ Fuel</button>
+          <button onclick="hidePayMenus(); ui.cashierTab='bbd'; setPage('cashier')">📦 BBD</button>
+        </div>
+      </div>
+      <div class="rads-paywrap">
+        <button type="button" class="rads-paybtn" title="Get Pay — New Bill, Bill History" onclick="radsTogglePayMenu('getpay')">
+          <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIbGNtcwIQAABtbnRyUkdCIFhZWiAH4gADABQACQAOAB1hY3NwTVNGVAAAAABzYXdzY3RybAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLWhhbmSdkQA9QICwPUB0LIGepSKOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAABxjcHJ0AAABDAAAAAx3dHB0AAABGAAAABRyWFlaAAABLAAAABRnWFlaAAABQAAAABRiWFlaAAABVAAAABRyVFJDAAABaAAAAGBnVFJDAAABaAAAAGBiVFJDAAABaAAAAGBkZXNjAAAAAAAAAAV1UkdCAAAAAAAAAAAAAAAAdGV4dAAAAABDQzAAWFlaIAAAAAAAAPNUAAEAAAABFslYWVogAAAAAAAAb6AAADjyAAADj1hZWiAAAAAAAABilgAAt4kAABjaWFlaIAAAAAAAACSgAAAPhQAAtsRjdXJ2AAAAAAAAACoAAAB8APgBnAJ1A4MEyQZOCBIKGAxiDvQRzxT2GGocLiBDJKwpai5+M+s5sz/WRldNNlR2XBdkHWyGdVZ+jYgskjacq6eMstu+mcrH12Xkd/H5////2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAQ4BDgDASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAEGAwUHBAL/xABFEAEAAgEDAQQFCQYDBgcBAQAAAQIDBAURBhIhMUETIlFhcTI0QlKBkbHB0RQjcnOh4TM1YhZDRFOCkhUkVIOTsvA2ov/EABoBAQADAQEBAAAAAAAAAAAAAAABAwQCBQb/xAAyEQEAAgEDAgQDCAIDAQEAAAAAAQIDBBExEiETMkFRBSJxFDNCUmGBkbEVoUPR8CPx/9oADAMBAAIRAxEAPwDn4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//Z" alt="Get Pay" /><span>Get Pay</span>
+        </button>
+        <div data-paymenu="getpay" hidden class="rads-paymenu">
+          <button onclick="hidePayMenus(); setPage('newbill'); setTimeout(()=>document.getElementById('bill_cust_name')?.focus(),100)">🧾 New Bill</button>
+          <button onclick="hidePayMenus(); setPage('sales')">📜 Bill History</button>
+        </div>
+      </div>`;
+    document.getElementById('app').append(bar);
     if(ui.page==='cashier'){
       const home=document.querySelector('#app main > div');
       home?.insertAdjacentHTML('afterbegin',smartCashierMarkup());
@@ -4286,8 +4713,8 @@ render = function(){
         button.onclick=()=>{
           const counter=button.dataset.monitorCounter;
           if(!Object.hasOwn(cashierFloors(),counter))return;
+          // FIX (V7): viewing another counter's balance must NEVER change the Bill being made.
           ui.selectedCashierFloor=counter;
-          ui.draftBill.floor=counter;
           render();
         };
       });
@@ -4310,7 +4737,15 @@ render = function(){
       <label>අකුරු 2–3<input id="rads-plate-prefix" maxlength="3" autocapitalize="characters" placeholder="AWB" value="${txt(vehicle.prefix)}"></label>
       <label>අංක 4<input id="rads-plate-number" maxlength="4" inputmode="numeric" placeholder="2020" value="${txt(vehicle.number)}"></label>
       <label>Plate මිල (Rs.)<input id="rads-plate-price" type="number" min="0.01" step="0.01" value="${plate.price||''}"></label>
-      <label>භාරදීමට පැය<input id="rads-plate-hours" type="number" min="0.01" max="8760" step="0.01" value="${txt(d.plateHours)}" placeholder="උදා: 2"></label></div>`:''}<label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>`;
+      <label>භාරදීමට පැය<input id="rads-plate-hours" type="number" min="0.01" max="8760" step="0.01" value="${txt(d.plateHours)}" placeholder="උදා: 2"></label></div>`:''}<label><input type="checkbox" id="rads-job"${d.createJob?' checked':''}> Bill එකට Job එකක් සාදන්න</label>
+      <div class="rads-reason-only-box">
+        <label class="text-xs font-black"><input type="checkbox" id="rads-reason-only"${d.reasonOnly?' checked':''}> 🧾 Item නැතුව Bill කඩන්න — හේතුවක් විතරක් තියෙන Payment එකක්</label>
+        <div id="rads-reason-box" style="display:${d.reasonOnly?'block':'none'};margin-top:8px" class="grid sm:grid-cols-2 gap-2">
+          <label class="text-xs font-bold">හේතුව (Reason) *<input id="rads-reason-text" type="text" placeholder="උදා: පරණ Bill එකක ඉතිරිය / Advance / Donation / වෙනත් ගෙවීම" value="${txt(d.reasonText||'')}" class="w-full border rounded px-2 py-1.5 text-xs font-bold bg-white"></label>
+          <label class="text-xs font-bold">Amount (Rs.) *<input id="rads-reason-amount" type="number" min="0.01" step="0.01" placeholder="උදා: 5000" value="${d.reasonAmount||''}" class="w-full border rounded px-2 py-1.5 text-xs font-bold bg-white"></label>
+        </div>
+        <p class="text-[11px] text-blue-800 font-bold" style="margin:6px 0 0">✔️ මේක tick කළාම Item එකක් අත්‍යවශ්‍ය නැහැ. හේතුව + Amount දැම්මාම Bill එක කැඩෙනවා. Bill එකේ Item එක විදියට හේතුවම පෙන්නනවා.</p>
+      </div>`;
       for(const [id,key] of [['rads-branch','branch'],['rads-title','title']])document.getElementById(id).oninput=e=>{d[key]=e.target.value;recalcBillLive();};
       if(plate){
         document.getElementById('rads-plate-hours').oninput=e=>{d.plateHours=e.target.value;};
@@ -4332,6 +4767,20 @@ render = function(){
         unitPrice?.addEventListener('input',()=>{price.value=unitPrice.value;});
       }
       document.getElementById('rads-job').onchange=e=>{d.createJob=e.target.checked;recalcBillLive();};
+      const roBox=document.getElementById('rads-reason-only');
+      if(roBox){
+        roBox.onchange=e=>{
+          d.reasonOnly=e.target.checked;
+          const box=document.getElementById('rads-reason-box');
+          if(box) box.style.display=d.reasonOnly?'block':'none';
+          if(!d.reasonOnly){ d.reasonText=''; d.reasonAmount=0; d.items=[{baseName:'',w:'',h:'',rate:'',manualRate:false,name:'',qty:1,price:0}]; render(); }
+          recalcBillLive();
+        };
+        const rt=document.getElementById('rads-reason-text');
+        if(rt) rt.oninput=e=>{ d.reasonText=e.target.value; recalcBillLive(); };
+        const ra=document.getElementById('rads-reason-amount');
+        if(ra) ra.oninput=e=>{ d.reasonAmount=e.target.value; recalcBillLive(); };
+      }
     }
   }
 };
@@ -4351,6 +4800,17 @@ window.render = render;
   });
 
   render();
+</script>
+
+<script>
+/* RADS PATCH - selected cashier name in banner (auto) */
+(function(){
+  function fillSel(){
+    var el=document.getElementById('rads-sel-cashier-name');
+    if(el && window.ui && window.ui.selectedCashierFloor){ /* name is in cashierFloors, not exposed globally - fallback to key */ el.textContent = window.ui.selectedCashierFloor; }
+  }
+  setInterval(fillSel, 1000);
+})();
 </script>
 </body>
 </html>
