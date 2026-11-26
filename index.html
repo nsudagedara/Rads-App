@@ -694,6 +694,17 @@
   };
 
   window.hidePayMenus = () => document.querySelectorAll('[data-paymenu]').forEach(m=>m.hidden=true);
+  // V16: Get Pay menu -> land on the CORRECT cashier section + scroll to it.
+  window.radsGoCashier = (tab, cat, targetId) => {
+    ui.cashierTab = tab;
+    if (cat) ui.cashierExpenseCat = cat;
+    setPage('cashier');
+    if (targetId) setTimeout(()=>{ const el=document.getElementById(targetId); if(!el) return;
+      el.scrollIntoView({behavior:'smooth',block:'start'});
+      el.classList.add('ring-4','ring-blue-400');
+      setTimeout(()=>el.classList.remove('ring-4','ring-blue-400'),1500);
+    }, 100);
+  };
   window.radsTogglePayMenu = (which) => { document.querySelectorAll('[data-paymenu]').forEach(m=>{ if(m.dataset.paymenu===which) m.hidden=!m.hidden; else m.hidden=true; }); };
   window.setPage = (p) => {
     ui.page = p;
@@ -2121,14 +2132,6 @@ window.transferCashierToTeaPurse = async () => {
                   onkeydown="handleBillEnter(event, 'bill_advance_input')"
                   placeholder="Fixing..." class="w-full border rounded px-2 py-1.5 text-xs" />
               </div>
-              <div>
-                <div class="text-[10px] font-black text-gray-500">App Version: V15 — Final — මේක පේන්නේ නැත්නම් ෆෝන් එකේ දුවන්නේ තාම පරණ ෆයිල් එකයි</div>
-                <label class="text-[11px] font-bold">Cash Register — Bill එකේ Cashier එක (හැම අලුත් Item එකකටම මේක auto වැටෙනවා)</label>
-                <div class="grid grid-cols-3 gap-2 mt-1">
-                  ${['Ground','Upper','Counter3'].map(f=>`<button type="button" onclick="ui.draftBill.floor='${f}'; ui.selectedCashierFloor='${f}'; if(ui.draftBill.items[0])ui.draftBill.items[0].floor='${f}'; render();" class="px-2 py-3 rounded-xl text-sm font-black border-2 ${d.floor===f?'bg-blue-600 text-white ring-4 ring-blue-300 border-blue-800 scale-[1.02]':'bg-gray-100 border-gray-300'}">${d.floor===f?'✓ ':''}${f==='Ground'?'⬇️ GROUND':f==='Upper'?'⬆️ UPPER A':'⬆️ UPPER B'}</button>`).join('')}
-                </div>
-                <div class="mt-1 px-2 py-2 rounded-lg bg-blue-600 text-white text-[13px] font-black">💰 සල්ලි + වැඩේ දෙකම යන්නේ: ${txt(billCashierLabel(d.floor))} ට<br><span class="text-[11px] font-bold">⚠️ මේක හරියටම බලන්න — වැරදුණොත් සල්ලි වැරදි Cashier එකට යනවා</span></div>
-              </div>
             </div>
 
             <div class="bg-amber-50 border border-amber-300 p-2 rounded-lg flex items-center gap-2">
@@ -2176,7 +2179,13 @@ window.transferCashierToTeaPurse = async () => {
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-2">
+                        <div>
+              <div class="text-[11px] font-black text-gray-700 mb-1">💰 Cashier</div>
+              <div class="grid grid-cols-3 gap-2">
+                ${['Ground','Upper','Counter3'].map(f=>`<button type="button" onclick="ui.draftBill.floor='${f}'; ui.selectedCashierFloor='${f}'; if(ui.draftBill.items[0])ui.draftBill.items[0].floor='${f}'; render();" class="w-full px-2 py-3 rounded-xl text-sm font-black border-2 ${d.floor===f?'bg-blue-600 text-white ring-4 ring-blue-300 border-blue-800':'bg-white border-gray-300 text-gray-800'}">${d.floor===f?'✓ ':''}${f==='Ground'?'⬇️ GROUND':f==='Upper'?'⬆️ UPPER A':'⬆️ UPPER B'}</button>`).join('')}
+              </div>
+            </div>
+<div class="flex flex-wrap gap-2">
               <button class="rads-review-entry" ${(() => { const named=d.items.every(i=>String(i.name||i.baseName||'').trim()); const ok=named&&total>0&&(d.pending||adv>0); return ok?'':'disabled title="Item / Total / Paid එකක් අඩුයි — උඩින් පෙන්නන ඊළඟ පියවර බලන්න" style="opacity:.45"'; })()} onclick="saveNewBill(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs">Save Bill</button>
               <button id="btn_save_print_bill" ${(() => { const named=d.items.every(i=>String(i.name||i.baseName||'').trim()); const ok=named&&total>0&&(d.pending||adv>0); return ok?'':'disabled title="Item / Total / Paid එකක් අඩුයි — උඩින් පෙන්නන ඊළඟ පියවර බලන්න" style="opacity:.45"'; })()} onclick="saveNewBill(true)" class="bg-black hover:bg-gray-800 focus:ring-4 focus:ring-red-400 text-white font-black px-3 py-2 rounded-xl text-xs">🖨️ Save & Print (72mm)</button>
             </div>
@@ -2366,7 +2375,7 @@ window.transferCashierToTeaPurse = async () => {
           </div>
           <div class="text-right"><div class="text-[11px] font-bold text-rose-700">අද වියදම්: <b>Rs. ${todayTotal.toLocaleString()}</b></div><div class="text-[11px] text-gray-500">මේ මාසේ වියදම්: <b>Rs. ${monthTotal.toLocaleString()}</b></div><div class="text-2xl font-black text-emerald-700">${txt(cashierFloors()[ui.selectedCashierFloor])} Balance: Rs. ${currency(bals[ui.selectedCashierFloor])}</div></div>
         </div>
-        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+        <div id="rads-expense-form" class="bg-white p-4 rounded-2xl shadow border space-y-3">
           <h3 class="font-black text-sm">💸 අලුත් වියදමක් එකතු කරන්න — ${txt(cashierFloors()[ui.selectedCashierFloor])} Register එකෙන් අඩු වේ</h3>
           <div class="flex flex-wrap gap-1.5">
             ${cats.map(c2 => `<button onclick="ui.cashierExpenseCat='${c2.replace(/'/g,"\\'")}'; render();" class="px-2.5 py-1 rounded-lg text-xs font-bold ${cat===c2 ? 'bg-[#E31E24] text-white' : 'bg-gray-800 text-white'}">${c2}</button>`).join('')}
@@ -2397,7 +2406,7 @@ window.transferCashierToTeaPurse = async () => {
     const reminderReady = reminder && remFloorBal >= 1000;
     const hist = (cloudData.bbdHistory||[]).slice(0,20);
     return `
-      <div class="max-w-6xl mx-auto p-4 space-y-4">
+      <div id="rads-bbd-section" class="max-w-6xl mx-auto p-4 space-y-4">
         <div class="flex flex-wrap gap-2">
           <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💰 Cashier Home</button>
           <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💸 Expense (වියදම්)</button>
@@ -3993,7 +4002,7 @@ window.radsSettlePetty=async function(id){
 };
 function pettyMarkup(){
   const rows=cloudData.pettyAdvances||[];
-  return `<section data-history="petty" class="bg-white p-4 rounded-2xl shadow border space-y-2">
+  return `<section id="rads-petty-section" data-history="petty" class="bg-white p-4 rounded-2xl shadow border space-y-2">
     ${bulkControls()}
     <h3 class="font-black">Petty Cash · අත්තිකාරම්</h3>
     <button class="bg-black text-white px-3 py-2 rounded-lg" onclick="radsIssuePetty()">+ මුදල් නිකුත් කරන්න</button>
@@ -4694,10 +4703,10 @@ render = function(){
         <span class="rads-paylabel">Get Pay</span>
         <div data-paymenu="getpay" hidden class="rads-paymenu">
           <button onclick="hidePayMenus(); setPage('pending')">💰 සල්ලි ගන්න</button>
-          <button onclick="hidePayMenus(); ui.cashierTab='expense'; setPage('cashier')">💸 වියදම්</button>
-          <button onclick="hidePayMenus(); ui.cashierTab='home'; setPage('cashier')">🧾 Petty</button>
-          <button onclick="hidePayMenus(); ui.cashierTab='expense'; ui.cashierExpenseCat='⛽ Fuel'; setPage('cashier')">⛽ Fuel</button>
-          <button onclick="hidePayMenus(); ui.cashierTab='bbd'; setPage('cashier')">📦 BBD</button>
+          <button onclick="hidePayMenus(); radsGoCashier('expense','🧹 Office','rads-expense-form')">💸 වියදම්</button>
+          <button onclick="hidePayMenus(); radsGoCashier('home',null,'rads-petty-section')">🧾 Petty</button>
+          <button onclick="hidePayMenus(); radsGoCashier('expense','⛽ Fuel','rads-expense-form')">⛽ Fuel</button>
+          <button onclick="hidePayMenus(); radsGoCashier('bbd',null,'rads-bbd-section')">📦 BBD</button>
         </div>
       </div>
       <div class="rads-paywrap rads-pay-right">
