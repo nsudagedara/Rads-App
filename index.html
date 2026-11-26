@@ -1115,6 +1115,59 @@
     playSoundEffect('cashOut');
   }catch(err){alert(err.message);}
 };
+window.radsBBDTake = async () => {
+  if(!isBillingRole())return;
+  const person=document.getElementById('bbd_person')?.value||'';
+  const amount=fixed(document.getElementById('bbd_amount')?.value);
+  const reason=document.getElementById('bbd_reason')?.value.trim()||'';
+  const bal=bbdBalanceOf(cloudData);
+  if(!Number.isFinite(amount)||amount<=0)return alert('ගත් මුදල ඇතුළත් කරන්න.');
+  if(amount>bal)return alert('BBD එකේ තියෙන්නේ Rs. '+currency(bal)+' යි. ඒකට වඩා ගන්න බැහැ.');
+  if(!reason)return alert('හේතුව ඇතුළත් කරන්න.');
+  if(!confirm(`BBD එකෙන් Rs. ${currency(amount)} ගන්නද?\n${person} · ${reason}\nඉතිරි වෙන්නේ: Rs. ${currency(bal-amount)}`))return;
+  try{
+    const id=uuid(),date=todayISO();
+    await commitUpdate('BBD take',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      const b=bbdBalanceOf(s);
+      if(amount>b)throw Error('BBD එකේ ප්‍රමාණවත් මුදල් නැහැ.');
+      s.bbdBalance=fixed(b-amount);
+      (s.bbdHistory||=[]).unshift({id,date,type:'take',amount,person,reason,balanceAfter:s.bbdBalance,by:p.name});
+    });
+    playSoundEffect('cashOut');
+  }catch(err){alert(err.message);}
+};
+window.radsBBDAllocate = async (fromReminder=false) => {
+  if(!isBillingRole())return;
+  const bal=bbdBalanceOf(cloudData);
+  if(bal!==0)return alert('BBD එකේ තාම Rs. '+currency(bal)+' ඉතුරුයි. ඉතිරිය රු. 0 වුණාම තමයි නැවත වෙන් කරන්න පුළුවන්.');
+  const floor = fromReminder ? (cloudData.bbdReminder?.floor||ui.selectedCashierFloor) : (document.getElementById('bbd_floor')?.value||ui.selectedCashierFloor);
+  const avail=calcCashierBalances()[floor]||0;
+  if(avail<1000){
+    if(confirm(`⚠️ ${cashierFloors()[floor]} එකේ තියෙන්නේ Rs. ${currency(avail)} යි.\n\nමුදල් ප්‍රමාණවත් වුණාම මේ Cashier එකෙන් රු. 1,000 වෙන් කරන්න මතක් කරන්නද?`)){
+      try{ await commitUpdate('BBD reminder set',(s,p)=>{ s.bbdReminder={floor,amount:1000,date:todayISO(),by:p.name}; }); }catch(err){alert(err.message);}
+    }
+    return;
+  }
+  if(!confirm(`${cashierFloors()[floor]} එකෙන් රු. 1,000 අඩු වෙලා BBD එකට එකතු කරන්නද?\nBBD ඉතිරිය: Rs. 1,000`))return;
+  try{
+    const id=uuid(),date=todayISO();
+    await commitUpdate('BBD allocate',(s,p)=>{
+      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
+      if(bbdBalanceOf(s)!==0)throw Error('BBD එකේ තාම ඉතිරියක් තියෙනවා.');
+      if(calcCashierBalances(s)[floor]<1000)throw Error('Cashier එකේ ප්‍රමාණවත් මුදල් නැහැ.');
+      s.bbdBalance=1000;
+      (s.bbdAllocations||=[]).unshift({id,date,floor,amount:1000,by:p.name});
+      (s.bbdHistory||=[]).unshift({id,date,type:'allocate',amount:1000,person:p.name,floor,reason:'BBD නැවත වෙන් කිරීම — '+cashierFloors()[floor],balanceAfter:1000,by:p.name});
+      delete s.bbdReminder;
+    });
+    playSoundEffect('cashIn');
+  }catch(err){alert(err.message);}
+};
+window.radsBBDCancelReminder = async () => {
+  if(!confirm('BBD මතක් කිරීම අයින් කරන්නද?'))return;
+  try{ await commitUpdate('BBD reminder cancelled',(s)=>{ delete s.bbdReminder; }); }catch(err){alert(err.message);}
+};
 window.transferCashierToTeaPurse = async () => {
     const amt = Number(document.getElementById('tea_trans_amt').value);
     const floor = document.getElementById('tea_trans_floor').value;
@@ -2245,6 +2298,7 @@ window.transferCashierToTeaPurse = async () => {
         <div class="flex flex-wrap gap-2">
           <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💰 Cashier Home</button>
           <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">💸 Expense (වියදම්)</button>
+          <button onclick="ui.cashierTab='bbd'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">📦 BBD</button>
         </div>
         <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
           <div><span class="text-[11px] font-bold text-gray-500">SELECT CASH REGISTER</span>
@@ -2276,10 +2330,66 @@ window.transferCashierToTeaPurse = async () => {
     `;
   }
 
+
+  function bbdBalanceOf(state){ return Number(state?.bbdBalance ?? 1000); }
+  function renderCashierBBDTab(bals) {
+    const bal = bbdBalanceOf(cloudData);
+    const reminder = cloudData.bbdReminder || null;
+    const remFloorBal = reminder ? (bals[reminder.floor] ?? 0) : 0;
+    const reminderReady = reminder && remFloorBal >= 1000;
+    const hist = (cloudData.bbdHistory||[]).slice(0,20);
+    return `
+      <div class="max-w-6xl mx-auto p-4 space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💰 Cashier Home</button>
+          <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💸 Expense (වියදම්)</button>
+          <button onclick="ui.cashierTab='bbd'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">📦 BBD</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
+          <div><span class="text-[11px] font-bold text-gray-500">BALANCE BROUGHT DOWN (BBD) — වෙනම වෙන් කරපු මුදල</span>
+          <div class="text-3xl font-black ${bal===0?'text-red-700':'text-emerald-700'}">Rs. ${currency(bal)}</div>
+          <div class="text-[11px] text-gray-500">${bal===0?'BBD ඉවරයි — Cashier එකකින් රු. 1,000ක් නැවත වෙන් කරන්න.':'මුළු BBD වෙන් කිරීම: Rs. 1,000'}</div></div>
+          <div class="text-right"><div class="text-[11px] font-bold text-gray-500">තෝරපු Cashier: ${txt(cashierFloors()[ui.selectedCashierFloor])}</div><div class="text-lg font-black">Rs. ${currency(bals[ui.selectedCashierFloor])}</div></div>
+        </div>
+        ${reminder ? `<div class="p-4 rounded-2xl border space-y-2 ${reminderReady?'bg-emerald-50 border-emerald-400':'bg-amber-50 border-amber-400'}">
+          <h3 class="font-black text-sm">⏰ BBD මතක් කිරීම — ${txt(cashierFloors()[reminder.floor]||reminder.floor)}</h3>
+          <p class="text-xs">${reminderReady ? `දැන් ${txt(cashierFloors()[reminder.floor])} එකේ Rs. ${currency(remFloorBal)} තියෙනවා. <b>දැන් රු. 1,000 වෙන් කරන්නද?</b>` : `${txt(cashierFloors()[reminder.floor])} එකේ තාම Rs. ${currency(remFloorBal)} යි. මුදල් ප්‍රමාණවත් වුණාම මෙතනින් වෙන් කරන්න පුළුවන්.`}</p>
+          <div class="flex flex-wrap gap-2">
+            ${reminderReady ? `<button onclick="radsBBDAllocate(true)" class="bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black">✅ ඔව් — දැන් රු. 1,000 වෙන් කරන්න</button>` : ''}
+            <button onclick="radsBBDCancelReminder()" class="bg-gray-800 text-white px-3 py-2 rounded-xl text-xs font-bold">මතක් කිරීම අයින් කරන්න</button>
+          </div>
+        </div>` : ''}
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h3 class="font-black text-sm">💸 BBD එකෙන් මුදල් ගන්න</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <label class="text-xs font-bold">කවුද ගත්තේ<select id="bbd_person" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1">${cloudData.staff.map(s => `<option value="${s.name}">${s.name} (${s.id})</option>`).join('')}</select></label>
+            <label class="text-xs font-bold">ගත් මුදල (Rs.)<input id="bbd_amount" type="number" min="0.01" step="0.01" max="${bal}" placeholder="උදා: 300" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+            <label class="text-xs font-bold">හේතුව / Reason<input id="bbd_reason" type="text" placeholder="මොකටද ගත්තේ?" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1" /></label>
+          </div>
+          <p class="text-[11px] text-gray-500">ගත්තාට පස්සේ BBD ඉතිරිය: <b id="bbd-after">Rs. ${currency(bal)}</b></p>
+          <button onclick="radsBBDTake()" class="bg-[#E31E24] text-white px-4 py-2 rounded-xl text-xs font-black" ${bal<=0?'disabled':''}>− BBD එකෙන් ගන්න</button>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-3">
+          <h3 class="font-black text-sm">🔄 BBD නැවත වෙන් කරන්න — රු. 1,000 (BBD ඉතිරිය රු. 0 වුණාම විතරයි)</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label class="text-xs font-bold">කෝන් Cashier එකෙන්ද වෙන් කරන්නේ?<select id="bbd_floor" class="w-full border rounded-lg px-2 py-1.5 text-xs font-bold mt-1">${cashierOptions(ui.selectedCashierFloor)}</select></label>
+            <div class="flex items-end"><button onclick="radsBBDAllocate(false)" class="bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black w-full" ${bal!==0?'disabled':''}>+ රු. 1,000 වෙන් කරන්න</button></div>
+          </div>
+          ${bal!==0 ? '<p class="text-[11px] text-amber-700 font-bold">⚠️ BBD එකේ තාම Rs. '+currency(bal)+' ඉතුරුයි. ඉතිරිය රු. 0 වුණාම තමයි නැවත වෙන් කරන්න පුළුවන්.</p>' : '<p class="text-[11px] text-gray-500">තෝරපු Cashier එකෙන් රු. 1,000 අඩු වෙලා BBD එකට එකතු වෙනවා.</p>'}
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow border space-y-1">
+          <h3 class="font-black text-sm">📋 BBD History</h3>
+          ${hist.length ? hist.map(h => `<div class="flex justify-between text-xs border-b py-1.5"><span><b>${h.date}</b> • ${h.type==='take'?'💸 ගත්තා':'🔄 වෙන් කළා'} — ${txt(h.person||h.floor||'')} ${h.reason? '— '+txt(h.reason):''}</span><span class="font-black ${h.type==='take'?'text-rose-700':'text-emerald-700'}">${h.type==='take'?'-':'+'} Rs. ${currency(h.amount)} · ඉතිරි Rs. ${currency(h.balanceAfter)}</span></div>`).join('') : '<p class="text-xs text-gray-500">තාම BBD සටහනක් නැහැ.</p>'}
+        </div>
+      </div>
+    `;
+  }
+
   function renderCashierHome() {
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
     if(ui.cashierTab==='expense') return renderCashierExpenseTab(bals, mStats);
+    if(ui.cashierTab==='bbd') return renderCashierBBDTab(bals);
     const c = ui.coins;
     const countedTotal = (c.c5000 * 5000) + (c.c2000 * 2000) + (c.c1000 * 1000) + (c.c500 * 500) + (c.c100 * 100) + (c.c50 * 50) + (c.c20 * 20) + (c.c10 * 10) + (c.c5 * 5);
     const sysBal = bals[ui.selectedCashierFloor];
@@ -2298,6 +2408,7 @@ window.transferCashierToTeaPurse = async () => {
         <div class="flex flex-wrap gap-2">
           <button onclick="ui.cashierTab='home'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-[#E31E24] text-white">💰 Cashier Home</button>
           <button onclick="ui.cashierTab='expense'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">💸 Expense (වියදම්) →</button>
+          <button onclick="ui.cashierTab='bbd'; render();" class="px-4 py-2 rounded-xl text-xs font-black bg-gray-100">📦 BBD: Rs. ${currency(bbdBalanceOf(cloudData))}</button>
         </div>
         ${isBossOrFamily(ui.user)?'<button type="button" class="bg-black text-white px-3 py-2 rounded" onclick="radsAddCashier()">+ Add Cashier Counter</button>':''}
         <div class="bg-white p-4 rounded-2xl shadow border flex flex-wrap justify-between items-center gap-3">
@@ -3413,6 +3524,9 @@ calcCashierBalances = function(state=cloudData) {
     if(advance.voidDetails||!Object.hasOwn(floors,advance.floor))continue;
     if(advance.issuedDate===day)result[advance.floor]-=Number(advance.amount);
     if(advance.settledDate===day)result[advance.floor]+=Number(advance.returned);
+  }
+  for(const a of (state.bbdAllocations||[]).filter(a=>a.date===day&&!a.voidDetails)){
+    if(Object.hasOwn(floors,a.floor))result[a.floor]-=Number(a.amount||0);
   }
   result.Total=fixed(Object.keys(floors).reduce((sum,id)=>sum+result[id],0));
   return result;
