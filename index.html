@@ -108,6 +108,9 @@
 .rads-counter-selected strong{color:#fff!important}
 .rads-selected-badge{display:inline-block;background:#fff;color:#1d4ed8;font-weight:900;font-size:10px;padding:2px 8px;border-radius:999px;margin-bottom:4px}
 .rads-reason-only-box{margin-top:10px;padding:12px;border:2px dashed #2563eb;border-radius:12px;background:#eff6ff}
+
+/* Internal cashier check line: screen + confirm only, NEVER on printed customer receipt */
+@media print { .rads-internal-note { display:none !important; } }
 </style>
 <style>
 #rads-print-root { display:none }
@@ -3382,7 +3385,7 @@ function printableBill(b,draft=false) {
     ${b.custPhone?`<div>WhatsApp: ${txt(b.custPhone)}</div>`:''}
     ${b.vehicle?`<div>Vehicle: ${txt(b.vehicle)}</div>`:''}
     <div>Cashier: ${txt(b.cashier)}${section?' ('+txt(section)+')':''}</div>
-    <div style="font-weight:900;color:#1d4ed8">💰 මුදල් එකතු වෙන්නේ: ${txt(cashierFloors()[b.floor]||b.floor||section||'')} Cashier එකට</div>
+    ${draft?`<div class="rads-internal-note" style="font-weight:900;color:#000">💰 මුදල් එකතු වෙන්නේ: ${txt(cashierFloors()[b.floor]||b.floor||section||'')} Cashier එකට (Draft එකේ විතරයි)</div>`:``}
     <div>Payment: ${txt(b.payMethod||'Cash')}</div><hr>
     ${b.items.map(i=>{
       const hasRate=Number(i.rate)>0;
@@ -8067,7 +8070,7 @@ function printableBill(b,draft=false) {
     ${b.custPhone?`<div>WhatsApp: ${txt(b.custPhone)}</div>`:''}
     ${b.vehicle?`<div>Vehicle: ${txt(b.vehicle)}</div>`:''}
     <div>Cashier: ${txt(b.cashier)}${section?' ('+txt(section)+')':''}</div>
-    <div style="font-weight:900;color:#1d4ed8">💰 මුදල් එකතු වෙන්නේ: ${txt(cashierFloors()[b.floor]||b.floor||section||'')} Cashier එකට</div>
+    ${draft?`<div class="rads-internal-note" style="font-weight:900;color:#000">💰 මුදල් එකතු වෙන්නේ: ${txt(cashierFloors()[b.floor]||b.floor||section||'')} Cashier එකට (Draft එකේ විතරයි)</div>`:``}
     <div>Payment: ${txt(b.payMethod||'Cash')}</div><hr>
     ${b.items.map(i=>{
       const hasRate=Number(i.rate)>0;
