@@ -2280,7 +2280,6 @@ window.transferCashierToTeaPurse = async () => {
     const bals = calcCashierBalances();
     const mStats = calcMonthlyStats();
     if(ui.cashierTab==='expense') return renderCashierExpenseTab(bals, mStats);
-    const mStats = calcMonthlyStats();
     const c = ui.coins;
     const countedTotal = (c.c5000 * 5000) + (c.c2000 * 2000) + (c.c1000 * 1000) + (c.c500 * 500) + (c.c100 * 100) + (c.c50 * 50) + (c.c20 * 20) + (c.c10 * 10) + (c.c5 * 5);
     const sysBal = bals[ui.selectedCashierFloor];
