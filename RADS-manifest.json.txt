@@ -1,0 +1,12 @@
+{
+  "name": "ROSHAN ADVERTISING SERVICES (PVT) LTD - RADS",
+  "short_name": "RADS",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#E31E24",
+  "icons": [
+    {"src": "rads-logo.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "rads-logo.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}
