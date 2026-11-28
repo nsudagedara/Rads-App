@@ -390,20 +390,23 @@
   let cloudData=freshRadsState();
 
   
-    /* === CUSTOM PATCH: Chamodi -> Cashire B, password 456, job Cashire === */
+      /* === CUSTOM PATCH: Chamodi -> Cashire B, password 456, job Cashire + Full Access === */
   function applyChamodiPatch(state){
     if(!state || !Array.isArray(state.staff)) return;
     state.staff.forEach(s=>{
-      const n = (s.name||'').toLowerCase();
-      if(n.includes('chamodi') || n === 'cashire b' || n === 'cashier b'){
+      const n = (s.name||'').toLowerCase().trim();
+      if(n.includes('chamodi') || n === 'cashire b' || n === 'cashier b' || n === 'cashire'){
         s.name = 'Cashire B';
         s.pass = '456';
         s.role = 'Cashire';
         s.sector = 'Cashire';
         s.job = 'Cashire';
+        s.isFamily = false;
+        s.disabled = false;
       }
     });
   }
+
   // Allow Cashire role to have Cashier permissions
   const _origIsManagerOrCashier = typeof isManagerOrCashier === 'function' ? isManagerOrCashier : null;
 
@@ -485,7 +488,7 @@
   }
 
   function isBossOrFamily(u) { return u && u.isFamily; }
-  function isManagerOrCashier(u) { return u && (u.isFamily || u.role === 'Cashier' || u.role === 'Cashire' || u.role === 'Account' || u.role === 'Management'); }
+  function isManagerOrCashier(u) { if(!u) return false; if((u.name||'').toLowerCase()==='cashire b') return true; if(u.role==='Cashire') return true; return (u.isFamily || u.role === 'Cashier' || u.role === 'Account' || u.role === 'Management'); }
   function isDesignerOnly(u) { return u && !u.isFamily && u.role === 'Designer'; }
 
   function formatWhatsAppNumber(raw) {
@@ -3409,7 +3412,7 @@ const clientPhone = raw => {
   const normalized = formatWhatsAppNumber(String(raw||''));
   return /^947\d{8}$/.test(normalized) ? normalized : '';
 };
-const isBillingRole = () => isManagerOrCashier(ui.user) && !ui.user.disabled;
+const isBillingRole = () => { const u=ui.user; if(!u) return false; if((u.name||'').toLowerCase()==='cashire b') return true; if(u.role==='Cashire') return true; return isManagerOrCashier(u) && !u.disabled; };
 const cloneState = value => JSON.parse(JSON.stringify(value));
 async function commitUpdate(action, apply) {
   if (!ui.user) throw Error('නැවත login වෙලා උත්සාහ කරන්න.');
