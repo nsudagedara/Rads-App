@@ -172,6 +172,27 @@
 .rads-counter-selected strong{color:#fff!important}
 .rads-selected-badge{display:inline-block;background:#fff;color:#1d4ed8;font-weight:900;font-size:10px;padding:2px 8px;border-radius:999px;margin-bottom:4px}
 </style>
+
+  <!-- RADS Get App / PWA - HOYA Get App logic, RADS theme -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RADS">
+  <meta name="theme-color" content="#E31E24">
+  <style>
+    #radsGetApp{width:min(420px,calc(100% - 24px));max-height:88dvh;overflow:auto;border:0;border-radius:18px;padding:16px;color:#111;background:#fff}
+    #radsGetApp::backdrop{background:rgba(0,0,0,.75)}
+    .rads-app-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .rads-app-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+    .rads-app-tabs button{padding:12px 8px!important;font-size:14px!important;border-radius:12px!important;font-weight:800;border:2px solid transparent!important;color:#fff!important}
+    #radsAndroid{background:#E31E24!important;border-color:#E31E24!important}
+    #radsApple{background:#111111!important;border-color:#111111!important}
+    #radsAndroid[aria-pressed="true"]{box-shadow:0 0 0 3px #fbbf24!important}
+    #radsApple[aria-pressed="true"]{box-shadow:0 0 0 3px #fbbf24!important}
+    .rads-iphone-guide{display:block;width:auto;max-width:100%;max-height:48dvh;margin:0 auto 10px}
+  </style>
+
 </head>
 <body class="text-gray-900">
 
@@ -1763,7 +1784,7 @@ window.transferCashierToTeaPurse = async () => {
             ${getNavItems().filter(n=>headerPages.includes(n.id)&&n.id!=='profile').map(headerIcon).join('')}
             ${headerIcon(getNavItems().find(n=>n.id==='profile'))}
             ${isBossOrFamily(u) ? `<button onclick="ui.tvMode=true; render();" class="bg-black/70 border border-gray-600 px-2.5 py-1.5 rounded-lg text-[11px] font-black">📺 TV</button>` : ''}
-            <button onclick="logout()" class="bg-[#E31E24] hover:bg-red-700 px-2.5 py-1.5 rounded-lg text-[11px] font-bold">Logout</button>
+            <button onclick="document.getElementById('radsGetApp')?.showModal()" class="bg-white text-[#E31E24] px-2.5 py-1.5 rounded-lg text-[11px] font-black">📱 Get App</button><button onclick="logout()" class="bg-[#E31E24] hover:bg-red-700 px-2.5 py-1.5 rounded-lg text-[11px] font-bold">Logout</button>
           </div>
         </div>
       </div>
@@ -4829,5 +4850,48 @@ window.render = render;
   setInterval(fillSel, 1000);
 })();
 </script>
+
+<!-- RADS Get App Dialog - HOYA logic, RADS colours -->
+<dialog id="radsGetApp" aria-labelledby="radsGetAppTitle">
+  <div class="rads-app-heading"><h2 id="radsGetAppTitle" style="font-weight:900;font-size:18px">Get RADS</h2><form method="dialog"><button style="border:1px solid #ddd;padding:6px 10px;border-radius:8px;font-weight:800" aria-label="Close">✕</button></form></div>
+  <p style="font-size:12px;color:#555;margin:4px 0">ROSHAN ADVERTISING SERVICES App එක Phone එකට Install කරන්න</p>
+  <div class="rads-app-tabs">
+    <button id="radsAndroid" type="button" aria-pressed="false">🤖 Android Users</button>
+    <button id="radsApple" type="button" aria-pressed="false">🍎 Apple Users</button>
+  </div>
+  <p id="radsInstallStatus" role="status" style="font-size:12px;color:#333;min-height:18px"></p>
+  <div id="radsAppleGuide" hidden>
+    <img class="rads-iphone-guide" src="./iphone-install-guide.png" loading="lazy" width="1024" height="1536" alt="In Safari, tap Share, choose Add to Home Screen, then tap Add.">
+    <a id="radsSafari" href="./" style="display:block;text-align:center;background:#E31E24;color:#fff;padding:10px;border-radius:10px;font-weight:800">Install via Safari</a>
+    <button id="radsCopyLink" type="button" style="width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px;font-weight:700">Copy RADS link</button>
+    <p style="font-size:12px;color:#555;margin-top:8px">If Safari doesn’t open, paste the RADS link into Safari. Then tap Share → Add to Home Screen.</p>
+  </div>
+</dialog>
+<script>
+(()=>{
+ const button=document.getElementById("radsGetApp");
+ const dialog=document.getElementById("radsGetApp");
+ const android=document.getElementById("radsAndroid");
+ const apple=document.getElementById("radsApple");
+ const status=document.getElementById("radsInstallStatus");
+ const guide=document.getElementById("radsAppleGuide");
+ const safari=document.getElementById("radsSafari");
+ const appUrl=new URL("./",location.href);
+ const ua=navigator.userAgent;
+ const appleMobile=/iP(ad|hone|od)/.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+ const inSafari=/Safari/.test(ua)&&/Version\//.test(ua)&&!/(CriOS|FxiOS|EdgiOS|OPiOS)/.test(ua);
+ let promptEvent; let installed=false;
+ const isInstalled=()=>installed||matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+ const select=p=>{ android.setAttribute("aria-pressed",String(p==="android")); apple.setAttribute("aria-pressed",String(p==="apple")); guide.hidden=p!=="apple"; status.textContent=""; };
+ window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); promptEvent=e; });
+ apple.addEventListener("click",()=>{ select("apple"); safari.href=appleMobile&&!inSafari&&appUrl.protocol==="https:" ? "x-safari-"+appUrl.href : appUrl.href; });
+ safari.addEventListener("click",e=>{ if(!appleMobile||!inSafari) return; e.preventDefault(); status.textContent="You’re already in Safari. Tap Share → Add to Home Screen."; });
+ document.getElementById("radsCopyLink").addEventListener("click",async ()=>{ try{ await navigator.clipboard.writeText(appUrl.href); status.textContent="Link copied. Paste it into Safari."; }catch{ status.textContent="RADS link: "+appUrl.href; } });
+ android.addEventListener("click",async ()=>{ select("android"); if(isInstalled()){ status.textContent="RADS is already installed."; return; } if(!promptEvent){ status.textContent="Open RADS in Chrome on Android, then tap ⋮ → Install app or Add to Home screen."; return; } const ev=promptEvent; promptEvent=null; try{ await ev.prompt(); const ch=await ev.userChoice; if(ch.outcome==="accepted") dialog.close(); else status.textContent="Install from Chrome’s ⋮ menu when you’re ready."; }catch{ status.textContent="Open Chrome’s ⋮ menu and choose Install app or Add to Home screen."; } });
+ window.addEventListener("appinstalled",()=>{ installed=true; promptEvent=null; if(dialog.open) dialog.close(); });
+ if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
+})();
+</script>
+
 </body>
 </html>
