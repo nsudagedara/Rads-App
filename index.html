@@ -3686,7 +3686,6 @@ function cashierBalancesForDate(state,day,payments=paymentRows(state)) {
   for(const a of (state.bbdAllocations||[]).filter(a=>a.date===day&&!a.voidDetails)){
     if(Object.hasOwn(floors,a.floor))result[a.floor]-=Number(a.amount||0);
   }
-  result.Upper=fixed(result.Upper-Number(state.cashierAResetOffsets?.[day]||0));
   result.Total=fixed(Object.keys(floors).reduce((sum,id)=>sum+result[id],0));
   return result;
 }
@@ -3891,10 +3890,6 @@ window.transferCashierToTeaPurse = async (legacy=false) => {
 };
 
 function resetTeaSetup(state,date) {
-  // Retain original entries for sales reports and zero the register at its current position.
-  const adjustment=cashierBalancesForDate(state,date).Upper;
-  const offsets=state.cashierAResetOffsets ||= {};
-  offsets[date]=fixed(Number(offsets[date]||0)+adjustment);
   for(const transfer of state.teaTransfers||[]){
     if(transfer.floor==='Upper'&&transfer.carryShortfall&&!transfer.shortfallReset){
       transfer.shortfallReset=date;
@@ -3917,9 +3912,9 @@ function resetTeaSetup(state,date) {
 window.radsResetTeaSetup = async () => {
   if(!isBossOrFamily(ui.user))return;
   const date=todayISO();
-  if(!confirm('Cashier A ශේෂය, Tea Purse, සියලු තේ මුදල් සහ පැමිණීම්/නිවාඩු ගණන් බිංදුවට දාන්නද? පැරණි බිල් සහ සේවක ගිණුම් තබා ගනී.'))return;
+  if(!confirm('Tea Purse, සියලු තේ මුදල් සහ පැමිණීම්/නිවාඩු ගණන් බිංදුවට දාන්නද?'))return;
   try{
-    await commitUpdate('Tea, attendance and Cashier A reset · '+date,(state,actor)=>{
+    await commitUpdate('Tea and attendance reset · '+date,(state,actor)=>{
       if(!isBossOrFamily(actor))throw Error('Boss access අවශ්‍යයි.');
       if(date!==todayISO())throw Error('දිනය වෙනස් වී ඇත. නැවත උත්සාහ කරන්න.');
       resetTeaSetup(state,date);
