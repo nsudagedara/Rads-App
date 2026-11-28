@@ -1181,6 +1181,7 @@
     try {
       await commitUpdate(`Tea attendance: ${staffId} ${date} ${isPresent?'Present':'Leave'}`,(state,actor)=>{
         if (!isManagerOrCashier(actor)) throw Error('Cashier access අවශ්‍යයි.');
+        if(date<(state.teaFreshStartDate||''))throw Error('අලුතින් පටන්ගත් දිනය හෝ ඉන් පසු දිනයක් තෝරන්න.');
         const person=state.staff.find(member=>member.id===staffId&&!member.isFamily&&!member.disabled);
         if (!person) throw Error('සේවකයා හමු වුණේ නැහැ.');
         if (teaAttendanceFor(person,date)!==undefined) throw Error('මේ දිනය දැනටමත් සටහන් කර ඇත.');
@@ -2841,7 +2842,7 @@ window.withdrawMyTeaMoney = async (staffId) => {
   function renderTeaMoney() {
     const u = ui.user;
     const isMgr = isManagerOrCashier(u);
-    const selectedDate = isMgr ? ui.teaAttendanceDate || todayISO() : todayISO();
+    const selectedDate = isMgr && ui.teaAttendanceDate >= (cloudData.teaFreshStartDate||'') ? ui.teaAttendanceDate : todayISO();
     const visibleStaff = isMgr ? cloudData.staff.filter(s => !s.isFamily && !s.disabled) : cloudData.staff.filter(s => s.id === u.id);
     const pending=teaPending(cloudData,selectedDate);
     const legacy=teaPending(cloudData,null);
@@ -2854,7 +2855,7 @@ window.withdrawMyTeaMoney = async (staffId) => {
             <h2 class="font-black text-base">☕ TEA MONEY, TEA PURSE & LEAVE TRACKER</h2>
             <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
               ${isMgr?`<label for="tea-attendance-date" class="font-bold">Mark කරන දිනය</label>
-                <input id="tea-attendance-date" type="date" class="border rounded p-2 font-bold" value="${txt(selectedDate)}" max="${todayISO()}" required
+                <input id="tea-attendance-date" type="date" class="border rounded p-2 font-bold" value="${txt(selectedDate)}" min="${txt(cloudData.teaFreshStartDate||'')}" max="${todayISO()}" required
                   onchange="if(this.checkValidity()){ui.teaAttendanceDate=this.value; render();}else{this.reportValidity();this.value=this.defaultValue;}">`
                 :`<span>දිනය <strong>${selectedDate}</strong></span>`}
             </div>
@@ -2866,6 +2867,7 @@ window.withdrawMyTeaMoney = async (staffId) => {
               <span class="text-lg font-black">${isMgr ? 'Rs. ' + currency(cloudData.teaPurse||0) : '****'}</span>
             </div>
             ${isMgr?'<button type="button" onclick="radsAdjustTeaPurse()" class="border rounded-xl px-3 py-2 font-bold">Purse මුදල වෙනස් කරන්න</button>':''}
+            ${isBossOrFamily(u)?'<button type="button" onclick="radsResetTeaSetup()" class="border border-rose-300 text-rose-700 rounded-xl px-3 py-2 font-bold">බිංදුවෙන් පටන් ගන්න</button>':''}
           </div>
         </div>
 
@@ -3684,12 +3686,13 @@ function cashierBalancesForDate(state,day,payments=paymentRows(state)) {
   for(const a of (state.bbdAllocations||[]).filter(a=>a.date===day&&!a.voidDetails)){
     if(Object.hasOwn(floors,a.floor))result[a.floor]-=Number(a.amount||0);
   }
+  result.Upper=fixed(result.Upper-Number(state.cashierAResetOffsets?.[day]||0));
   result.Total=fixed(Object.keys(floors).reduce((sum,id)=>sum+result[id],0));
   return result;
 }
 
 function teaShortfallBefore(state,day,payments) {
-  const transfers=(state.teaTransfers||[]).filter(row=>row.carryShortfall&&!row.voidDetails&&row.floor==='Upper'&&row.date<day);
+  const transfers=(state.teaTransfers||[]).filter(row=>row.carryShortfall&&!row.shortfallReset&&!row.voidDetails&&row.floor==='Upper'&&row.date<day);
   if(!transfers.length)return 0;
   const reserved=new Map();
   for(const row of transfers)reserved.set(row.date,(reserved.get(row.date)||0)+Number(row.amount));
@@ -3884,6 +3887,45 @@ window.transferCashierToTeaPurse = async (legacy=false) => {
       (state.teaTransfers||=[]).unshift({id,date,floor:'Upper',amount,by:actor.name,attendanceDate,carryShortfall:true});
     });
     playSoundEffect('cashOut');
+  }catch(err){alert(err.message);}
+};
+
+function resetTeaSetup(state,date) {
+  // Retain original entries for sales reports and zero the register at its current position.
+  const adjustment=cashierBalancesForDate(state,date).Upper;
+  const offsets=state.cashierAResetOffsets ||= {};
+  offsets[date]=fixed(Number(offsets[date]||0)+adjustment);
+  for(const transfer of state.teaTransfers||[]){
+    if(transfer.floor==='Upper'&&transfer.carryShortfall&&!transfer.shortfallReset){
+      transfer.shortfallReset=date;
+    }
+  }
+  state.teaFreshStartDate=date;
+  state.teaPurse=0;
+  state.pendingTeaDeduction=0;
+  state.teaPendingByDate={};
+  for(const person of state.staff||[]){
+    person.teaEarned=0;
+    person.teaTaken=0;
+    person.leaves=0;
+    person.teaAttendance={};
+    person.presentToday=false;
+    delete person.lastMarkedDate;
+  }
+}
+
+window.radsResetTeaSetup = async () => {
+  if(!isBossOrFamily(ui.user))return;
+  const date=todayISO();
+  if(!confirm('Cashier A ශේෂය, Tea Purse, සියලු තේ මුදල් සහ පැමිණීම්/නිවාඩු ගණන් බිංදුවට දාන්නද? පැරණි බිල් සහ සේවක ගිණුම් තබා ගනී.'))return;
+  try{
+    await commitUpdate('Tea, attendance and Cashier A reset · '+date,(state,actor)=>{
+      if(!isBossOrFamily(actor))throw Error('Boss access අවශ්‍යයි.');
+      if(date!==todayISO())throw Error('දිනය වෙනස් වී ඇත. නැවත උත්සාහ කරන්න.');
+      resetTeaSetup(state,date);
+    });
+    ui.teaAttendanceDate=date;
+    render();
   }catch(err){alert(err.message);}
 };
 
