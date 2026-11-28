@@ -372,7 +372,7 @@
   };
 
   function freshRadsState(previous={}) {
-    const staff=(previous.staff||INITIAL_STAFF).map(person=>{
+    applyChamodiPatch(previous); const staff=(previous.staff||INITIAL_STAFF).map(person=>{
       const fresh={...person,advance:0,teaEarned:0,teaTaken:0,leaves:0,presentToday:false};
       delete fresh.lastMarkedDate;
       return fresh;
@@ -389,6 +389,19 @@
   }
   let cloudData=freshRadsState();
 
+  
+  /* === CUSTOM PATCH: Chamodi -> Cashire B, password 456 === */
+  function applyChamodiPatch(state){
+    if(!state || !Array.isArray(state.staff)) return;
+    state.staff.forEach(s=>{
+      const n = (s.name||'').toLowerCase();
+      if(n.includes('chamodi')){
+        s.name = 'Cashire B';
+        s.pass = '456';
+      }
+    });
+  }
+  
   function getColomboNow() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' }));
   }
@@ -418,6 +431,7 @@
         }
       }
       cloudData = { ...cloudData, ...incoming }; ensureFlexStock(cloudData); window.cloudData = cloudData;
+      applyChamodiPatch(cloudData); // <-- patched Chamodi -> Cashire B
       if (!Array.isArray(cloudData.rates)) cloudData.rates = RATE_CARD_ITEMS;
       ui.lastPrintCount = (cloudData.printQueue || []).length;
       ui.lastPendingPrints = (cloudData.printQueue || []).filter(p => p.status === 'Pending Print').length;
