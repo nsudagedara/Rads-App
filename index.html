@@ -390,17 +390,23 @@
   let cloudData=freshRadsState();
 
   
-  /* === CUSTOM PATCH: Chamodi -> Cashire B, password 456 === */
+    /* === CUSTOM PATCH: Chamodi -> Cashire B, password 456, job Cashire === */
   function applyChamodiPatch(state){
     if(!state || !Array.isArray(state.staff)) return;
     state.staff.forEach(s=>{
       const n = (s.name||'').toLowerCase();
-      if(n.includes('chamodi')){
+      if(n.includes('chamodi') || n === 'cashire b' || n === 'cashier b'){
         s.name = 'Cashire B';
         s.pass = '456';
+        s.role = 'Cashire';
+        s.sector = 'Cashire';
+        s.job = 'Cashire';
       }
     });
   }
+  // Allow Cashire role to have Cashier permissions
+  const _origIsManagerOrCashier = typeof isManagerOrCashier === 'function' ? isManagerOrCashier : null;
+
   
   function getColomboNow() {
     return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' }));
@@ -479,7 +485,7 @@
   }
 
   function isBossOrFamily(u) { return u && u.isFamily; }
-  function isManagerOrCashier(u) { return u && (u.isFamily || u.role === 'Cashier' || u.role === 'Account' || u.role === 'Management'); }
+  function isManagerOrCashier(u) { return u && (u.isFamily || u.role === 'Cashier' || u.role === 'Cashire' || u.role === 'Account' || u.role === 'Management'); }
   function isDesignerOnly(u) { return u && !u.isFamily && u.role === 'Designer'; }
 
   function formatWhatsAppNumber(raw) {
@@ -3944,7 +3950,7 @@ window.radsStaff = async (mode,selectedId,disable) => {
     if(!name)return;
     const role=mode==='toggle'?entry.role:prompt('Role (Cashier, Designer, Account, Management, Printing Operator, Sticker Worker, Yard Job)',entry?.role||'Designer')?.trim();
     if(!role)return;
-    if(mode!=='toggle'&&!['Cashier','Designer','Account','Management','Printing Operator','Sticker Worker','Yard Job'].includes(role))throw Error('වලංගු role එකක් තෝරන්න.');
+    if(mode!=='toggle'&&!['Cashier','Cashire','Designer','Account','Management','Printing Operator','Sticker Worker','Yard Job'].includes(role))throw Error('වලංගු role එකක් තෝරන්න.');
     const password=mode==='add'?prompt('Temporary password (අකුරු 12ක් හෝ වැඩි)'):'';
     if(mode==='add'&&(!password||password.length<12))throw Error('Temporary password එක අකුරු 12ක් හෝ වැඩි විය යුතුයි.');
     if(!confirm(`${mode==='toggle'?(disable?'Remove':'Restore'):mode} · ${name}?`))return;
