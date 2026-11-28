@@ -110,6 +110,10 @@
 .rads-smart-btn{border:1px solid #065f46;background:#fff;color:#065f46;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:900}
 .rads-smart-btn:disabled{opacity:.4}
 .rads-quick-bill{bottom:calc(96px + env(safe-area-inset-bottom))!important}
+
+.rads-staff-form { display:grid; gap:12px; }
+.rads-staff-form label { display:grid; gap:4px; font-weight:700; }
+.rads-staff-form input,.rads-staff-form select { width:100%; border:1px solid #94a3b8; border-radius:8px; padding:8px; }
 </style>
 <style>
 #rads-print-root { display:none }
@@ -382,7 +386,7 @@
       rates:previous.rates||RATE_CARD_ITEMS,
       bills:[],jobs:[],stock:[],yardStock:[],yardMovements:[],extraWorks:[],
       printQueue:[],bookings:[],clientsDir:[],bankTransfers:[],pettyAdvances:[],
-      teaPurse:0,pendingTeaDeduction:0,teaTransfers:[],leaveRequests:[],teamMessages:[],
+      teaPurse:0,pendingTeaDeduction:0,teaPendingByDate:{},teaTransfers:[],leaveRequests:[],teamMessages:[],
       shiftTransfers:[],auditLogs:[],remindersDone:{},
       sixMonthSummary:{halfYearIncome:0,halfYearExpenses:0,lastResetDate:startDate}
     };
@@ -395,14 +399,13 @@
     if(!state || !Array.isArray(state.staff)) return;
     state.staff.forEach(s=>{
       const n = (s.name||'').toLowerCase().trim();
-      if(n.includes('chamodi') || n === 'cashire b' || n === 'cashier b' || n === 'cashire'){
+      if(!s.profileEdited && (n.includes('chamodi') || n === 'cashire b' || n === 'cashier b' || n === 'cashire')){
         s.name = 'Cashire B';
         s.pass = '456';
         s.role = 'Cashire';
         s.sector = 'Cashire';
         s.job = 'Cashire';
         s.isFamily = false;
-        s.disabled = false;
       }
     });
   }
@@ -1168,7 +1171,7 @@
   }
 
   window.markAttendanceAndTea = async (staffId, isPresent) => {
-    if (!isBillingRole()) return;
+    if (!isManagerOrCashier(ui.user)) return;
     const date = ui.teaAttendanceDate || todayISO();
     const parsed = new Date(date + 'T00:00:00Z');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime()) ||
@@ -1178,7 +1181,7 @@
     try {
       await commitUpdate(`Tea attendance: ${staffId} ${date} ${isPresent?'Present':'Leave'}`,(state,actor)=>{
         if (!isManagerOrCashier(actor)) throw Error('Cashier access අවශ්‍යයි.');
-        const person=state.staff.find(member=>member.id===staffId&&!member.isFamily);
+        const person=state.staff.find(member=>member.id===staffId&&!member.isFamily&&!member.disabled);
         if (!person) throw Error('සේවකයා හමු වුණේ නැහැ.');
         if (teaAttendanceFor(person,date)!==undefined) throw Error('මේ දිනය දැනටමත් සටහන් කර ඇත.');
         const history=person.teaAttendance ||= {};
@@ -1192,7 +1195,8 @@
         }
         if (isPresent) {
           person.teaEarned=Number(person.teaEarned||0)+100;
-          state.pendingTeaDeduction=Number(state.pendingTeaDeduction||0)+100;
+          const pending=state.teaPendingByDate ||= {};
+          pending[date]=Number(pending[date]||0)+100;
         } else {
           person.leaves=Number(person.leaves||0)+1;
         }
@@ -1277,41 +1281,25 @@ window.radsBBDCancelReminder = async () => {
   if(!confirm('BBD මතක් කිරීම අයින් කරන්නද?'))return;
   try{ await commitUpdate('BBD reminder cancelled',(s)=>{ delete s.bbdReminder; }); }catch(err){alert(err.message);}
 };
-window.transferCashierToTeaPurse = async () => {
-    const amt = Number(document.getElementById('tea_trans_amt').value);
-    const floor = document.getElementById('tea_trans_floor').value;
-    if (!amt || amt <= 0) return alert('මුදල ඇතුළත් කරන්න.');
-
-    const bals = calcCashierBalances();
-    if (bals[floor] < amt) {
-      return alert(`⚠️ ${floor} Cash Register එකේ ප්‍රමාණවත් මුදලක් නැත (Balance: Rs. ${bals[floor]}).\nහෙට Cash Register එකට සල්ලි ආවම මෙම Pending Tea Deduction (Rs. ${cloudData.pendingTeaDeduction || 0}) අඩු කරගත හැක!`);
-    }
-
-    cloudData.teaPurse += amt;
-    cloudData.pendingTeaDeduction = Math.max(0, (cloudData.pendingTeaDeduction || 0) - amt);
-    cloudData.teaTransfers = cloudData.teaTransfers || [];
-    cloudData.teaTransfers.unshift({ date: getColomboDate(), floor, amount: amt, by: ui.user.name });
-    playSoundEffect('cashOut');
-    await saveCloud(`Deducted Rs. ${amt} from ${floor} Cashier to Tea Purse`);
-    render();
-  };
-
-  window.withdrawMyTeaMoney = async (staffId) => {
-    const p = cloudData.staff.find(s => s.id === staffId);
-    if (!p) return;
-    const rem = p.teaEarned - p.teaTaken;
-    if (rem <= 0) return alert('❌ ඔබගේ Tea Account එකේ ඉතුරු මුදල Rs. 0 කි!');
-
-    const amtStr = prompt(`${p.name} — ඉතුරු තේ සල්ලි: Rs. ${rem}\nලබා ගන්නා මුදල:`, rem);
-    if (!amtStr) return;
-    const amt = Number(amtStr);
-    if (isNaN(amt) || amt <= 0 || amt > rem) return alert(`⚠️ උපරිම ගත හැක්කේ Rs. ${rem} කි.`);
-    if (cloudData.teaPurse < amt) return alert(`⚠️ Tea Purse එකේ ඇත්තේ Rs. ${cloudData.teaPurse} කි.`);
-
-    p.teaTaken += amt;
-    cloudData.teaPurse -= amt;
-    await saveCloud(`${p.name} took Rs. ${amt} from Tea Money`);
-    render();
+window.withdrawMyTeaMoney = async (staffId) => {
+    const member=cloudData.staff.find(s=>s.id===staffId&&!s.disabled);
+    if(!member || (ui.user?.id!==staffId&&!isManagerOrCashier(ui.user)))return;
+    const remaining=fixed(Number(member.teaEarned||0)-Number(member.teaTaken||0));
+    if(remaining<=0)return alert('ලබාගැනීමට තේ මුදලක් නැහැ.');
+    const raw=prompt(member.name+' · ලබාගන්නා තේ මුදල',String(remaining));
+    if(raw===null)return;
+    const amount=pettyAmount(raw);
+    if(!Number.isFinite(amount)||amount<=0)return alert('වලංගු මුදලක් ඇතුළත් කරන්න.');
+    try{
+      await commitUpdate('Tea withdrawal · '+staffId+' · Rs. '+amount,(state,actor)=>{
+        if(actor.id!==staffId&&!isManagerOrCashier(actor))throw Error('අවසර නැහැ.');
+        const person=state.staff.find(s=>s.id===staffId&&!s.disabled);
+        if(!person || amount>fixed(Number(person.teaEarned||0)-Number(person.teaTaken||0)))throw Error('සේවකයාගේ ඉතිරිය ප්‍රමාණවත් නැහැ.');
+        if(amount>Number(state.teaPurse||0))throw Error('Tea Purse එකේ මුදල් ප්‍රමාණවත් නැහැ.');
+        person.teaTaken=fixed(Number(person.teaTaken||0)+amount);
+        state.teaPurse=fixed(Number(state.teaPurse||0)-amount);
+      });
+    }catch(err){alert(err.message);}
   };
 
   window.submitLeaveRequest = async () => {
@@ -1803,7 +1791,7 @@ window.transferCashierToTeaPurse = async () => {
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-1.5">
-            ${isBossOrFamily(u)?`<button onclick="radsStaff('add')">+ Staff</button><button onclick="radsStaff('edit')">Edit Staff</button><button onclick="radsManageStaff()">Staff Remove / Restore</button>`:""}
+            ${isBossOrFamily(u)?`<button onclick="radsManageStaff()">👥 සේවකයන් කළමනාකරණය</button>`:""}
             ${getNavItems().filter(n=>headerPages.includes(n.id)&&n.id!=='profile').map(headerIcon).join('')}
             ${headerIcon(getNavItems().find(n=>n.id==='profile'))}
             ${isBossOrFamily(u) ? `<button onclick="ui.tvMode=true; render();" class="bg-black/70 border border-gray-600 px-2.5 py-1.5 rounded-lg text-[11px] font-black">📺 TV</button>` : ''}
@@ -2854,7 +2842,10 @@ window.transferCashierToTeaPurse = async () => {
     const u = ui.user;
     const isMgr = isManagerOrCashier(u);
     const selectedDate = isMgr ? ui.teaAttendanceDate || todayISO() : todayISO();
-    const visibleStaff = isMgr ? cloudData.staff.filter(s => !s.isFamily) : cloudData.staff.filter(s => s.id === u.id);
+    const visibleStaff = isMgr ? cloudData.staff.filter(s => !s.isFamily && !s.disabled) : cloudData.staff.filter(s => s.id === u.id);
+    const pending=teaPending(cloudData,selectedDate);
+    const legacy=teaPending(cloudData,null);
+    const balance=isMgr ? calcCashierBalances().Upper : 0;
 
     return `
       <div class="max-w-5xl mx-auto p-4 space-y-4">
@@ -2872,20 +2863,19 @@ window.transferCashierToTeaPurse = async () => {
           <div class="flex gap-2">
             <div class="bg-amber-100 border border-amber-400 px-3 py-1.5 rounded-xl text-right">
               <span class="text-[10px] font-bold block">Tea Purse</span>
-              <span class="text-lg font-black">${isMgr ? 'Rs. ' + cloudData.teaPurse : '****'}</span>
+              <span class="text-lg font-black">${isMgr ? 'Rs. ' + currency(cloudData.teaPurse||0) : '****'}</span>
             </div>
-            ${isMgr ? `<div class="bg-rose-100 border border-rose-400 px-3 py-1.5 rounded-xl text-right"><span class="text-[10px] font-bold block">Cashier න් අඩු කිරීමට ඉතුරු</span><span class="text-lg font-black text-rose-900">Rs. ${cloudData.pendingTeaDeduction || 0}</span></div>` : ''}
+            ${isMgr?'<button type="button" onclick="radsAdjustTeaPurse()" class="border rounded-xl px-3 py-2 font-bold">Purse මුදල වෙනස් කරන්න</button>':''}
           </div>
         </div>
 
         ${isMgr ? `
           <div class="bg-amber-50 border border-amber-300 p-4 rounded-2xl space-y-2">
-            <h3 class="font-black text-xs text-amber-950">💸 CASHIER REGISTER එකෙන් තේ සල්ලි වෙන් කිරීම</h3>
-            <div class="flex flex-wrap gap-2">
-              <input id="tea_trans_amt" type="number" value="${cloudData.pendingTeaDeduction || 0}" readonly class="border rounded-lg px-3 py-1.5 text-xs font-black bg-white w-32" />
-              <span>${FLOOR[cloudData.teaCashier||"Upper"]}</span>${isBossOrFamily(ui.user)?`<button onclick="radsTeaCounter()">Change Upper Counter</button>`:""}
-              <button onclick="transferCashierToTeaPurse()" class="bg-amber-700 text-white px-4 py-1.5 rounded-lg text-xs font-black">Deduct from Cashier & Add to Tea Purse</button>
-            </div>
+            <h3 class="font-black">Cashier A වෙතින් තේ මුදල් වෙන් කරන්න</h3>
+            <p class="text-sm">Cashier A ශේෂය <strong>Rs. ${currency(balance)}</strong> · ${selectedDate} වෙන් කිරීමට Rs. ${currency(pending)}</p>
+            <p class="text-xs">Present සලකුණු කර මුදල වෙන් කරන්න. Cashier A ශේෂය ඍණ නම්, ඉදිරි දිනවල ලැබෙන මුදලෙන් හිඟය අඩු වේ.</p>
+            <button type="button" onclick="transferCashierToTeaPurse()" ${pending?'':'disabled'} class="bg-amber-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-black">Rs. ${currency(pending)} වෙන් කරන්න</button>
+            ${legacy?`<button type="button" onclick="transferCashierToTeaPurse(true)" class="border border-amber-700 px-4 py-2 rounded-lg text-sm font-bold">පැරණි ඉතිරිය Rs. ${currency(legacy)} වෙන් කරන්න</button>`:''}
           </div>
         ` : ''}
 
@@ -2898,7 +2888,7 @@ window.transferCashierToTeaPurse = async () => {
                 const attendance = teaAttendanceFor(s,selectedDate);
                 return `
                   <tr class="border-b">
-                    <td class="p-2 font-black">${s.name} (${s.id})</td>
+                    <td class="p-2 font-black">${txt(s.name)} (${txt(s.id)})</td>
                     <td class="p-2">${attendance!==undefined ? (attendance ? '<span class="text-green-700 font-bold">✅ Present</span>' : '<span class="text-red-600 font-bold">❌ Leave</span>') : '<span class="text-gray-400">Not Marked</span>'}</td>
                     <td class="p-2 font-bold text-rose-700">${s.leaves || 0} Days</td>
                     <td class="p-2 font-bold">Rs. ${s.teaEarned}</td>
@@ -3412,7 +3402,7 @@ const clientPhone = raw => {
   const normalized = formatWhatsAppNumber(String(raw||''));
   return /^947\d{8}$/.test(normalized) ? normalized : '';
 };
-const isBillingRole = () => { const u=ui.user; if(!u) return false; if((u.name||'').toLowerCase()==='cashire b') return true; if(u.role==='Cashire') return true; return isManagerOrCashier(u) && !u.disabled; };
+const isBillingRole = () => { const u=ui.user; if(!u||u.disabled) return false; if((u.name||'').toLowerCase()==='cashire b') return true; if(u.role==='Cashire') return true; return isManagerOrCashier(u) && !u.disabled; };
 const cloneState = value => JSON.parse(JSON.stringify(value));
 async function commitUpdate(action, apply) {
   if (!ui.user) throw Error('නැවත login වෙලා උත්සාහ කරන්න.');
@@ -3672,11 +3662,10 @@ function paymentRows(state) {
     ].filter(p=>p.amount>0);
   });
 }
-calcCashierBalances = function(state=cloudData) {
-  const day=todayISO();
+function cashierBalancesForDate(state,day,payments=paymentRows(state)) {
   const floors=cashierFloors(state);
   const result={...Object.fromEntries(Object.keys(floors).map(id=>[id,0])),Total:0,todayCashIncome:0,todayBankIncome:0,todayExpenses:0,todayTeaDeducted:0,todayWithdrawals:0};
-  for(const p of paymentRows(state).filter(p=>p.date===day)){
+  for(const p of payments.filter(p=>p.date===day)){
     if(p.method==='Cash'){result.todayCashIncome+=p.amount;result[Object.hasOwn(floors,p.floor)?p.floor:'Ground']+=p.amount;}
     else result.todayBankIncome+=p.amount;
   }
@@ -3696,6 +3685,38 @@ calcCashierBalances = function(state=cloudData) {
     if(Object.hasOwn(floors,a.floor))result[a.floor]-=Number(a.amount||0);
   }
   result.Total=fixed(Object.keys(floors).reduce((sum,id)=>sum+result[id],0));
+  return result;
+}
+
+function teaShortfallBefore(state,day,payments) {
+  const transfers=(state.teaTransfers||[]).filter(row=>row.carryShortfall&&!row.voidDetails&&row.floor==='Upper'&&row.date<day);
+  if(!transfers.length)return 0;
+  const reserved=new Map();
+  for(const row of transfers)reserved.set(row.date,(reserved.get(row.date)||0)+Number(row.amount));
+  const start=transfers.reduce((first,row)=>row.date<first?row.date:first,day);
+  const dates=new Set(reserved.keys());
+  for(const row of payments){
+    if(row.method==='Cash'&&row.floor==='Upper'&&row.date>=start&&row.date<day)dates.add(row.date);
+  }
+  for(const row of state.pettyAdvances||[]){
+    if(row.floor==='Upper'&&row.settledDate>=start&&row.settledDate<day)dates.add(row.settledDate);
+  }
+  let shortfall=0;
+  for(const date of [...dates].sort()){
+    const tea=reserved.get(date)||0;
+    const available=Math.max(0,fixed(cashierBalancesForDate(state,date,payments).Upper+tea));
+    shortfall=Math.max(0,fixed(shortfall+tea-available));
+  }
+  return shortfall;
+}
+
+calcCashierBalances = function(state=cloudData) {
+  const day=todayISO();
+  const payments=paymentRows(state);
+  const result=cashierBalancesForDate(state,day,payments);
+  const openingShortfall=teaShortfallBefore(state,day,payments);
+  result.Upper=fixed(result.Upper-openingShortfall);
+  result.Total=fixed(result.Total-openingShortfall);
   return result;
 };
 calcMonthlyStats = function(){
@@ -3842,24 +3863,58 @@ window.addExtraWork = async (tag='') => {
     playSoundEffect('cashOut');
   }catch(err){alert(err.message);}
 };
-window.transferCashierToTeaPurse = async () => {
-  if(!isBillingRole())return;
-  const amount=Number(cloudData.pendingTeaDeduction||0);
-  const floor=cloudData.teaCashier==='Counter3'?'Counter3':'Upper';
-  if(!amount)return alert('වෙන් කිරීමට තේ මුදලක් නැහැ.');
-  if(!confirm(`${cashierFloors()[floor]} වෙතින් Rs. ${currency(amount)} තේ සඳහා වෙන් කරන්නද?`))return;
+function teaPending(state,date) {
+  return Number((date ? state.teaPendingByDate?.[date] : state.pendingTeaDeduction)||0);
+}
+
+window.transferCashierToTeaPurse = async (legacy=false) => {
+  if(!isManagerOrCashier(ui.user))return;
+  const attendanceDate=legacy ? null : ui.teaAttendanceDate || todayISO();
+  const amount=teaPending(cloudData,attendanceDate);
+  if(amount<=0)return alert('වෙන් කිරීමට තේ මුදලක් නැහැ.');
+  if(!confirm('Cashier A වෙතින් Tea Purse එකට Rs. '+currency(amount)+' වෙන් කරන්නද?'))return;
+  const id=uuid(),date=todayISO();
   try{
-    const id=uuid(),date=todayISO();
-    await commitUpdate('Tea funding',(s,p)=>{
-      if(!isManagerOrCashier(p))throw Error('Cashier access අවශ්‍යයි.');
-      if(Number(s.pendingTeaDeduction)!==amount||(s.teaCashier==='Counter3'?'Counter3':'Upper')!==floor)throw Error('ගණන වෙනස් වෙලා. නැවත බලන්න.');
-      if(calcCashierBalances(s)[floor]<amount)throw Error('Cashier එකේ ප්‍රමාණවත් මුදල් නැහැ.');
-      s.teaPurse=fixed(Number(s.teaPurse||0)+amount);
-      s.pendingTeaDeduction=0;
-      (s.teaTransfers||=[]).unshift({id,date,floor,amount,by:p.name});
+    await commitUpdate('Tea funding · Cashier A',(state,actor)=>{
+      if(!isManagerOrCashier(actor))throw Error('Cashier access අවශ්‍යයි.');
+      if(teaPending(state,attendanceDate)!==amount)throw Error('මුදල වෙනස් වී ඇත. නැවත පරීක්ෂා කරන්න.');
+      if(attendanceDate)delete state.teaPendingByDate[attendanceDate];
+      else state.pendingTeaDeduction=0;
+      state.teaPurse=fixed(Number(state.teaPurse||0)+amount);
+      (state.teaTransfers||=[]).unshift({id,date,floor:'Upper',amount,by:actor.name,attendanceDate,carryShortfall:true});
     });
     playSoundEffect('cashOut');
   }catch(err){alert(err.message);}
+};
+
+window.radsAdjustTeaPurse = () => {
+  if(!isManagerOrCashier(ui.user))return;
+  const before=Number(cloudData.teaPurse||0);
+  review.innerHTML=`<h2>Tea Purse මුදල වෙනස් කරන්න</h2>
+    <form class="rads-staff-form">
+      <label>පර්ස් එකේ දැන් තිබෙන මුදල (Rs.)<input name="amount" type="number" min="0" step="0.01" required value="${before}"></label>
+      <label>වෙනස් කිරීමට හේතුව<input name="reason" required maxlength="150"></label>
+      <p role="alert" data-error></p>
+      <div class="rads-actions"><button type="button" data-close>වසන්න</button><button type="submit">සුරකින්න</button></div>
+    </form>`;
+  review.querySelector('[data-close]').onclick=()=>review.close();
+  review.querySelector('form').onsubmit=async event=>{
+    event.preventDefault();
+    const form=event.currentTarget, error=form.querySelector('[data-error]');
+    const submit=form.querySelector('[type=submit]');
+    const amount=pettyAmount(form.elements.amount.value),reason=form.elements.reason.value.trim();
+    if(!Number.isFinite(amount)||!reason){error.textContent='මුදල හා හේතුව ඇතුළත් කරන්න.';return;}
+    submit.disabled=true;
+    try{
+      await commitUpdate('Tea purse adjustment · Rs. '+before+' → '+amount+' · '+reason,(state,actor)=>{
+        if(!isManagerOrCashier(actor))throw Error('Cashier access අවශ්‍යයි.');
+        if(Number(state.teaPurse||0)!==before)throw Error('ශේෂය වෙනස් වී ඇත. කවුළුව නැවත විවෘත කරන්න.');
+        state.teaPurse=amount;
+      });
+      review.close();
+    }catch(err){error.textContent=err.message;submit.disabled=false;}
+  };
+  if(!review.open)review.showModal();
 };
 window.executeSixMonthBackupAndReset = () => {
   if(!isBossOrFamily(ui.user))return;
@@ -3926,50 +3981,101 @@ window.radsStockChange = async (index,mode) => {
   }catch(err){alert(err.message);}
 };
 window.updateStockItem=(index,delta)=>radsStockChange(index,delta>0?'add':'use');
-window.radsTeaCounter = async () => {
+const staffRoles=['Cashier','Cashire','Designer','Account','Management','Printing Operator','Sticker Worker','Yard Job'];
+window.radsManageStaff = () => {
   if(!isBossOrFamily(ui.user))return;
-  try{await commitUpdate('Tea cashier changed',(s,p)=>{
-    if(!isBossOrFamily(p))throw Error('Boss access අවශ්‍යයි.');
-    s.teaCashier=s.teaCashier==='Counter3'?'Upper':'Counter3';
-  });}catch(err){alert(err.message);}
-};
-window.radsManageStaff=()=>{
-  if(!isBossOrFamily(ui.user))return;
-  review.innerHTML=`<h2>Staff Remove / Restore</h2><div class="space-y-2">
-  ${cloudData.staff.filter(s=>!s.isFamily).map(s=>`<div class="flex justify-between gap-2"><span>${txt(s.name)} · ${txt(s.id)}</span><button type="button" class="underline" data-staff-remove="${txt(s.id)}" data-disabled="${Boolean(s.disabled)}">${s.disabled?'Restore':'Remove'}</button></div>`).join('')}
-  </div><button type="button" class="mt-4 underline" data-close>වසන්න</button>`;
+  review.innerHTML=`<h2>සේවකයන් කළමනාකරණය</h2>
+    <div class="flex flex-wrap gap-2 mb-3">
+      <input type="search" class="border rounded-lg p-2 grow" placeholder="නම, ID හෝ තනතුර" aria-label="සේවකයන් සොයන්න" data-search>
+      <button type="button" class="bg-emerald-700 text-white px-3 py-2 rounded-lg" data-add>+ අලුත් සේවකයෙක්</button>
+    </div>
+    <div class="space-y-2 max-h-[55vh] overflow-auto" data-members></div>
+    <div class="rads-actions"><button type="button" data-close>වසන්න</button></div>`;
+  const search=review.querySelector('[data-search]');
+  const list=review.querySelector('[data-members]');
+  function showMembers(){
+    const query=search.value.trim().toLowerCase();
+    const members=cloudData.staff.filter(s=>!s.isFamily&&[s.name,s.id,s.role].some(value=>String(value||'').toLowerCase().includes(query)));
+    list.innerHTML=members.map(s=>`<div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2">
+      <div><strong>${txt(s.name)}</strong><br><small>${txt(s.id)} · ${txt(s.role)} · ${s.disabled?'අක්‍රීය':'සක්‍රීය'}</small></div>
+      <div class="flex gap-2"><button type="button" class="underline" data-edit="${txt(s.id)}">වෙනස් කරන්න</button>
+      <button type="button" class="underline" data-toggle="${txt(s.id)}" data-disabled="${Boolean(s.disabled)}">${s.disabled?'නැවත සක්‍රීය කරන්න':'අයින් කරන්න'}</button></div>
+    </div>`).join('')||'<p>ගැළපෙන සේවකයන් නැහැ.</p>';
+  }
+  search.oninput=showMembers;
+  list.onclick=async event=>{
+    const button=event.target.closest('button');
+    if(!button)return;
+    if(button.dataset.edit)return radsStaff('edit',button.dataset.edit);
+    const id=button.dataset.toggle, disabled=button.dataset.disabled==='true';
+    const member=cloudData.staff.find(s=>s.id===id);
+    if(!member||!confirm(member.name+' · '+button.textContent+'?'))return;
+    button.disabled=true;
+    try{
+      await commitUpdate(disabled?'Staff restored':'Staff removed',(state,actor)=>{
+        if(!isBossOrFamily(actor))throw Error('Boss access අවශ්‍යයි.');
+        const person=state.staff.find(s=>s.id===id&&!s.isFamily);
+        if(!person||Boolean(person.disabled)!==disabled)throw Error('සේවක තත්ත්වය වෙනස් වී ඇත. නැවත බලන්න.');
+        person.disabled=!disabled;
+      });
+      showMembers();
+    }catch(err){alert(err.message);}
+    finally{button.disabled=false;}
+  };
+  review.querySelector('[data-add]').onclick=()=>radsStaff('add');
   review.querySelector('[data-close]').onclick=()=>review.close();
-  review.querySelectorAll('[data-staff-remove]').forEach(button=>{button.onclick=()=>radsStaff('toggle',button.dataset.staffRemove,button.dataset.disabled!=='true');});
+  showMembers();
   if(!review.open)review.showModal();
 };
-window.radsStaff = async (mode,selectedId,disable) => {
+
+window.radsStaff = (mode,id) => {
   if(!isBossOrFamily(ui.user))return alert('Boss login අවශ්‍යයි.');
-  try{
-    const staffId=mode==='add'?'':selectedId||prompt('Staff ID (PC...)')?.trim().toUpperCase();
-    if(mode!=='add'&&!staffId)return;
-    const entry=cloudData.staff.find(s=>s.id===staffId);
-    if(mode!=='add'&&!entry)return alert('Staff ID හමු වුණේ නැහැ.');
-    const name=mode==='toggle'?entry.name:prompt('Staff name',entry?.name||'')?.trim();
-    if(!name)return;
-    const role=mode==='toggle'?entry.role:prompt('Role (Cashier, Designer, Account, Management, Printing Operator, Sticker Worker, Yard Job)',entry?.role||'Designer')?.trim();
-    if(!role)return;
-    if(mode!=='toggle'&&!['Cashier','Cashire','Designer','Account','Management','Printing Operator','Sticker Worker','Yard Job'].includes(role))throw Error('වලංගු role එකක් තෝරන්න.');
-    const password=mode==='add'?prompt('Temporary password (අකුරු 12ක් හෝ වැඩි)'):'';
-    if(mode==='add'&&(!password||password.length<12))throw Error('Temporary password එක අකුරු 12ක් හෝ වැඩි විය යුතුයි.');
-    if(!confirm(`${mode==='toggle'?(disable?'Remove':'Restore'):mode} · ${name}?`))return;
-    await commitUpdate('Staff '+mode,(s,p)=>{
-      if(!isBossOrFamily(p))throw Error('Boss access අවශ්‍යයි.');
-      if(mode==='add'){
-        s.staff.push({id:nextId(s.staff,'PC',2),name,role,pass:password,isFamily:false,regDate:todayISO(),bday:'',tel:'',email:'',photo:'',addr:'',sector:role,basicSalary:0,commission:0,teaEarned:0,teaTaken:0,advance:0,leaves:0});
-        return;
-      }
-      const member=s.staff.find(x=>x.id===staffId);
-      if(!member||member.isFamily)throw Error('Boss / Family account එක මෙම menu එකෙන් වෙනස් කළ නොහැක.');
-      if(mode==='toggle')member.disabled=disable;
-      else {member.name=name;member.role=role;}
-    });
-    if(mode==='toggle')radsManageStaff();
-  }catch(err){alert(err.message);}
+  if(mode==='edit'&&!id)return radsManageStaff();
+  const adding=mode==='add';
+  const entry=cloudData.staff.find(s=>s.id===id&&!s.isFamily);
+  if(!adding&&!entry)return;
+  const roles=[...new Set([...staffRoles,entry?.role].filter(Boolean))];
+  const role=entry?.role||'Designer';
+  review.innerHTML=`<h2>${adding?'අලුත් සේවකයෙක්':'සේවක විස්තර වෙනස් කරන්න · '+txt(id)}</h2>
+    <form class="rads-staff-form">
+      <label>නම<input name="staffName" required maxlength="100" value="${txt(entry?.name||'')}"></label>
+      <label>තනතුර<select name="role">${roles.map(option=>`<option ${option===role?'selected':''}>${txt(option)}</option>`).join('')}</select></label>
+      <label>දුරකථන අංකය<input name="tel" type="tel" maxlength="30" value="${txt(entry?.tel||'')}"></label>
+      <label>Email<input name="email" type="email" value="${txt(entry?.email||'')}"></label>
+      <label>ලිපිනය<input name="addr" maxlength="250" value="${txt(entry?.addr||'')}"></label>
+      <label>${adding?'තාවකාලික මුරපදය':'අලුත් මුරපදය (අවශ්‍ය නම්)'}<input name="password" type="password" autocomplete="new-password" minlength="12" ${adding?'required':''}></label>
+      <p role="alert" data-error class="text-red-700"></p>
+      <div class="rads-actions"><button type="button" data-back>සේවක ලැයිස්තුව</button><button type="submit">සුරකින්න</button></div>
+    </form>`;
+  review.querySelector('[data-back]').onclick=radsManageStaff;
+  review.querySelector('form').onsubmit=async event=>{
+    event.preventDefault();
+    const form=event.currentTarget, fields=form.elements;
+    const error=form.querySelector('[data-error]'), submit=form.querySelector('[type=submit]');
+    const name=fields.staffName.value.trim(),role=fields.role.value,password=fields.password.value;
+    if(!name||!roles.includes(role)||((adding||password)&&password.length<12)){
+      error.textContent='නම, තනතුර සහ මුරපදය පරීක්ෂා කරන්න.';return;
+    }
+    const details={name,role,tel:fields.tel.value.trim(),email:fields.email.value.trim(),addr:fields.addr.value.trim()};
+    submit.disabled=true;
+    try{
+      await commitUpdate(adding?'Staff added':'Staff edited · '+id,(state,actor)=>{
+        if(!isBossOrFamily(actor))throw Error('Boss access අවශ්‍යයි.');
+        if(adding){
+          state.staff.push({id:nextId(state.staff,'PC',2),...details,pass:password,isFamily:false,regDate:todayISO(),bday:'',photo:'',sector:role,basicSalary:0,commission:0,teaEarned:0,teaTaken:0,advance:0,leaves:0,profileEdited:true});
+          return;
+        }
+        const member=state.staff.find(s=>s.id===id&&!s.isFamily);
+        if(!member)throw Error('සේවකයා හමු වුණේ නැහැ.');
+        // Preserve the legacy Cashier B login on the first profile edit.
+        applyChamodiPatch({staff:[member]});
+        Object.assign(member,details,{profileEdited:true});
+        if(password)member.pass=password;
+      });
+      radsManageStaff();
+    }catch(err){error.textContent=err.message;submit.disabled=false;}
+  };
+  if(!review.open)review.showModal();
 };
 window.radsSmartFullPaid = () => { const d=ui.draftBill; d.pending=false; d.cashTendered=''; d.advance=fixed(billDraftTotal(d)); render(); };
 window.radsSmartPending = () => { const d=ui.draftBill; d.pending=true; d.advance=0; d.cashTendered=''; render(); };
